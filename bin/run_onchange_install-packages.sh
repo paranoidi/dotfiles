@@ -1,6 +1,21 @@
 #!/bin/bash
 
-sudo apt install -y curl wget git mc task-spooler tmux git-delta fish fd-find bat fzf neovim gh jq unzip
+# Check and install packages only if they're not already installed
+packages_to_install=()
+packages=(curl wget git mc task-spooler tmux git-delta fish fd-find bat fzf neovim gh jq unzip)
+
+for package in "${packages[@]}"; do
+    if ! dpkg -l | grep -q "^ii  $package "; then
+        packages_to_install+=("$package")
+    fi
+done
+
+if [ ${#packages_to_install[@]} -gt 0 ]; then
+    echo "📦 Installing missing packages: ${packages_to_install[*]}"
+    sudo apt install -y "${packages_to_install[@]}"
+else
+    echo "✅ All required packages are already installed"
+fi
 
 if command -v starship >/dev/null 2>&1; then
     echo "🚀 Starship is available"
@@ -32,7 +47,13 @@ fi
 if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
     # These will be executed under graphical environment
 
-    sudo apt install xclip # nvim clipboard integration
+    # Install xclip for nvim clipboard integration
+    if ! dpkg -l | grep -q "^ii  xclip "; then
+        echo "📦 Installing xclip for nvim clipboard integration..."
+        sudo apt install -y xclip
+    else
+        echo "✅ xclip is already installed"
+    fi
     # Install FiraCode Nerd Font
     if compgen -G "$HOME/.fonts/FiraCodeNerdFont*" > /dev/null; then
         echo "🌟 FiraCodeNerdFont found"
