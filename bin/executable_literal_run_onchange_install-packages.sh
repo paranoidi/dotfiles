@@ -36,3 +36,10 @@ if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
         echo "FiraCodeNerdFont installed successfully!"
     fi
 fi
+
+# Change shell
+if [ "$SHELL" != "$(which fish)" ]; then
+    echo "Changing shell to fish..."
+    chsh -s "$(which fish)"             
+fi                                      
+
