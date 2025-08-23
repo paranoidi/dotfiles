@@ -1,6 +1,6 @@
 #!/bin/bash
 
-sudo apt install curl wget git mc task-spooler tmux git-delta fish fd-find bat fzf neovim gh jq unzip
+sudo apt install curl wget git mc task-spooler tmux git-delta fish fd-find bat fzf neovim gh jq unzip eza
 
 if command -v starship >/dev/null 2>&1; then
     echo "starship is available"
