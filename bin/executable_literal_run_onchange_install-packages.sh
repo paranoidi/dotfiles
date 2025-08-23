@@ -1,6 +1,14 @@
 #!/bin/bash
 
-sudo apt install git mc task-spooler tmux git-delta fish fd-find bat fzf neovim gh jq unzip
+sudo apt install curl wget git mc task-spooler tmux git-delta fish fd-find bat fzf neovim gh jq unzip
+
+if command -v starship >/dev/null 2>&1; then
+    echo "starship is available"
+else
+    echo "Installing starship"
+    curl -sS https://starship.rs/install.sh | sh
+fi
+
 
 if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
     # These will be executed under graphical environment
