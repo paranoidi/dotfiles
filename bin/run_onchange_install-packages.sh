@@ -17,7 +17,7 @@ else
     fi
 fi
 
-if command -v starship >/dev/null 2>&1; then
+if command -v eza >/dev/null 2>&1; then
     echo "🎉 Eza is available"
 else
     echo "📦 Installing eza..."
