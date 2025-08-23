@@ -20,15 +20,6 @@ if test -f (dirname (status -f))/local.fish
     source (dirname (status -f))/local.fish
 end
 
-# Automatically install fisher
-if not functions -q fisher
-    echo "Installing fisher ..."
-    set -q XDG_CONFIG_HOME; or set XDG_CONFIG_HOME ~/.config
-    curl https://git.io/fisher --create-dirs -sLo $XDG_CONFIG_HOME/fish/functions/fisher.fish
-    fish -c fisher
-    fisher_sync
-end
-
 # Add helper to install all plugins
 function fisher_sync
     for plugin in (cat ~/.config/fish/fish_plugins)
@@ -36,6 +27,15 @@ function fisher_sync
             fisher install $plugin
         end
     end
+end
+
+# Automatically install fisher
+if not functions -q fisher
+    echo "Installing fisher ..."
+    set -q XDG_CONFIG_HOME; or set XDG_CONFIG_HOME ~/.config
+    curl https://git.io/fisher --create-dirs -sLo $XDG_CONFIG_HOME/fish/functions/fisher.fish
+    fish -c fisher
+    fisher_sync
 end
 
 # Use starship prompt if installed
