@@ -1,0 +1,2 @@
+m Move with task-spooler
+  mc-move %D %t

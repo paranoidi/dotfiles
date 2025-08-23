@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Usage: mc-move DESTINATION FILES...
+
+set -euo pipefail
+
+if [[ $# -lt 2 ]]; then
+    echo "Usage: $0 DESTINATION FILES..."
+    exit 1
+fi
+
+dest="$1"
+shift
+
+# Check destination exists
+if [[ ! -d "$dest" ]]; then
+    echo "Error: destination directory '$dest' does not exist."
+    exit 1
+fi
+
+# Loop over each source and move individually
+for item in "$@"; do
+    if [[ -e "$item" ]]; then
+        tsp ionice -c 3 mv -v -- "$item" "$dest/"
+    else
+        echo "Warning: '$item' does not exist, skipping." >&2
+    fi
+done
+
