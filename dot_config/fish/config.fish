@@ -38,6 +38,11 @@ if not functions -q fisher
     fisher_sync
 end
 
+# Disable history for commands that cursor runs
+if set -q CURSOR_AGENT
+    set -U HISTFILE /dev/null
+end
+
 # Use starship prompt if installed
 if not set -q CURSOR_AGENT && type -q starship
     starship init fish | source
