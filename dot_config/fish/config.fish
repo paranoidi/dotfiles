@@ -38,6 +38,42 @@ if not functions -q fisher
     fisher_sync
 end
 
+# Classic fzf-style keybindings in fish
+if functions -q fzf_configure_bindings
+    # Ctrl+T → insert file path
+    function fzf_insert_file
+        set file (_fzf_search_directory)
+        if test -n "$file"
+            commandline -i -- $file
+        end
+    end
+    bind \cT fzf_insert_file
+
+    # Alt+C → cd into directory
+    function fzf_cd
+        set dir (_fzf_search_directory)
+        if test -n "$dir"
+            cd $dir
+            commandline -f repaint
+        end
+    end
+    bind \ec fzf_cd
+
+    # Ctrl+R → fuzzy history (already bound, but ensure in insert mode too)
+    bind \cr _fzf_search_history
+    bind -M insert \cr _fzf_search_history
+
+    # Ctrl+P → fuzzy process picker (kills selected PID)
+    function fzf_kill_process
+        set pid (_fzf_search_processes)
+        if test -n "$pid"
+            echo "Killing process $pid"
+            kill -9 $pid
+        end
+    end
+    bind \cP fzf_kill_process
+end
+
 # Disable history for commands that cursor runs
 if set -q CURSOR_AGENT
     set -U HISTFILE /dev/null

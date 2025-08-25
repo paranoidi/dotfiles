@@ -1,6 +1,10 @@
 function keys
   echo "COMMAND                   |  DEFAULT KEY SEQUENCE"
   echo "-- FZF ---------------------------------------------------------------"
+  echo "Search and insert file    |  Ctrl-T"
+  echo "Cd into directory         |  Alt-C"
+  echo "Kill process              |  Ctrl-P"
+  echo "-- FZF (PatrickF1) ---------------------------------------------------"
   echo "Search Directory          |  Ctrl+Alt+F      (F for file)"
   echo "Search Git Log            |  Ctrl+Alt+L      (L for log)"
   echo "Search Git Status         |  Ctrl+Alt+S      (S for status)"
