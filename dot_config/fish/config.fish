@@ -2,6 +2,10 @@ if status is-interactive
     # Commands to run in interactive sessions can go here
 end
 
+# Fix locales
+set -Ux LANG en_US.UTF-8
+set -Ux LC_ALL en_US.UTF-8
+
 # Set Neovim as default editor
 set -Ux EDITOR nvim
 set -Ux VISUAL nvim
@@ -38,6 +42,7 @@ if not functions -q fisher
     fisher_sync
 end
 
+<<<<<<< Updated upstream
 # Classic fzf-style keybindings in fish
 if functions -q fzf_configure_bindings
     # Ctrl+T → insert file path
