@@ -42,7 +42,6 @@ if not functions -q fisher
     fisher_sync
 end
 
-<<<<<<< Updated upstream
 # Classic fzf-style keybindings in fish
 if functions -q fzf_configure_bindings
     # Ctrl+T → insert file path
