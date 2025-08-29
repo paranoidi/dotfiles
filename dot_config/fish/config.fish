@@ -78,9 +78,9 @@ if functions -q fzf_configure_bindings
     bind \cP fzf_kill_process
 end
 
-# Disable history for commands that cursor runs
+# Disable history when cursor agent is running
 if set -q CURSOR_AGENT
-    set -U HISTFILE /dev/null
+    set -U fish_history ""
 end
 
 # Use starship prompt if installed
