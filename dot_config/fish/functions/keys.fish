@@ -28,4 +28,6 @@ function keys
   echo "Scroll down               |  Shift-PgDown"
   echo "Previous window           |  Ctrl-a twice"
   echo "Send Ctrl-a when nested   |  Send-q"
+  echo "Install tmux plugins      |  I               (I for install)"
+  echo "Uninstall plugins         |  alt-u           (u for uninstall)"
 end
