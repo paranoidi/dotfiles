@@ -80,7 +80,7 @@ end
 
 # Disable history when cursor agent is running
 if set -q CURSOR_AGENT
-    set -U fish_history ""
+    set -g fish_history ""
 end
 
 # Use starship prompt if installed
