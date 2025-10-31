@@ -83,6 +83,53 @@ if set -q CURSOR_AGENT
     set -g fish_history ""
 end
 
+# Function to run once every 24 hours
+function purgehist
+    # Add your daily cleanup task here
+    echo "Running daily history cleanup at "(date)
+    rmhist -s '^(sgpt|git commit)'
+    rmhist -s '^(ls|cd\s\.\.)$'
+end
+
+function check_and_run_daily
+    # Store timestamp in ~/.cache/fish/
+    set -l cache_dir ~/.cache/fish
+    set -l timestamp_file $cache_dir/last_daily_run
+    
+    # Create cache directory if it doesn't exist
+    if not test -d $cache_dir
+        mkdir -p $cache_dir
+    end
+    
+    set -l current_time (date +%s)
+    set -l should_run false
+    
+    # Check if timestamp file exists
+    if test -f $timestamp_file
+        set -l last_run (cat $timestamp_file)
+        # Calculate time difference in seconds (24 hours = 86400 seconds)
+        set -l time_diff (math $current_time - $last_run)
+        
+        if test $time_diff -ge 86400
+            set should_run true
+        end
+    else
+        # First run, no timestamp file exists
+        set should_run true
+    end
+    
+    # Run the function and update timestamp
+    if test "$should_run" = "true"
+        purgehist
+        echo $current_time > $timestamp_file
+    end
+end
+
+# Run daily check in interactive sessions
+if status is-interactive
+    check_and_run_daily
+end
+
 # Use starship prompt if installed
 if not set -q CURSOR_AGENT && type -q starship
     starship init fish | source

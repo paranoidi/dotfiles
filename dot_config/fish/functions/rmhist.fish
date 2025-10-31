@@ -1,6 +1,9 @@
 function rmhist --description "Remove commands matching a regex from Fish history"
+    argparse 's/silent' -- $argv
+    or return
+    
     if test (count $argv) -eq 0
-        echo "Usage: purgehist <regex>"
+        echo "Usage: rmhist [-s|--silent] <regex>"
         return 1
     end
     
@@ -27,7 +30,9 @@ function rmhist --description "Remove commands matching a regex from Fish histor
             if string match -qr -- "$regex" "$current_cmd"
                 set skip 1
                 set removed_count (math $removed_count + 1)
-                echo "Removed: $current_cmd"
+                if not set -q _flag_silent
+                    echo "Removed: $current_cmd"
+                end
             else
                 set skip 0
                 echo "$line" >> $temp_file
@@ -41,8 +46,11 @@ function rmhist --description "Remove commands matching a regex from Fish histor
     end < $history_file
     
     mv $temp_file $history_file
-    echo ""
-    echo "Removed $removed_count history entries matching '$regex'"
+    
+    if not set -q _flag_silent
+        echo ""
+        echo "Removed $removed_count history entries matching '$regex'"
+    end
     
     # Reload history in current session
     history --merge
