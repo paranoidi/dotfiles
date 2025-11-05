@@ -135,3 +135,7 @@ if not set -q CURSOR_AGENT && type -q starship
     starship init fish | source
 end
 
+# Enable direnv
+if type -q direnv
+    eval (direnv hook fish)
+end
