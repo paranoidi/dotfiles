@@ -2,7 +2,7 @@
 
 # Check and install packages only if they're not already installed
 packages_to_install=()
-packages=(curl wget git mc task-spooler tmux git-delta fish fd-find bat fzf neovim gh jq unzip)
+packages=(curl wget git mc task-spooler tmux git-delta fish fd-find bat neovim gh jq unzip)
 
 for package in "${packages[@]}"; do
     if ! dpkg -l | grep -q "^ii  $package "; then
