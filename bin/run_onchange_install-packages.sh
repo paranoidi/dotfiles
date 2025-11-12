@@ -17,11 +17,13 @@ else
     echo "✅ All required packages are already installed"
 fi
 
-if command -v fzf > /dev/null 2>&1; then
+if command -v fzf >/dev/null 2>&1; then
+    echo "✅ Fzf is installed"
+else
     echo "📦 Installing fzf from github"
     rm -rf ~/.fzf
     git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
-    ~/.fzf/install
+    ~/.fzf/install --no-bash --no-fish --no-zsh --no-key-bindings --no-completion --no-update-rc
 fi
 
 if command -v starship >/dev/null 2>&1; then
