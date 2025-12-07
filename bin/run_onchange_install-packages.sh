@@ -95,7 +95,23 @@ fish_path=$(which fish 2>/dev/null)
 if [ -z "$fish_path" ]; then
     echo "❌ Error: fish is not installed, cannot change shell" >&2
 elif [ "$SHELL" != "$fish_path" ]; then
-    echo "🏆 Changing shell to fish..."
-    chsh -s "$fish_path"
+    # Check fish version (must be at least 3.7)
+    fish_version=$(fish --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1)
+    if [ -z "$fish_version" ]; then
+        echo "⚠️  Warning: Could not determine fish version, skipping shell change" >&2
+    else
+        # Compare version (extract major.minor and compare)
+        major=$(echo "$fish_version" | cut -d. -f1)
+        minor=$(echo "$fish_version" | cut -d. -f2)
+        required_major=3
+        required_minor=7
+        
+        if [ "$major" -gt "$required_major" ] || ([ "$major" -eq "$required_major" ] && [ "$minor" -ge "$required_minor" ]); then
+            echo "🏆 Changing shell to fish (version $fish_version)..."
+            chsh -s "$fish_path"
+        else
+            echo "⚠️  Warning: fish version $fish_version is less than required 3.7, skipping shell change" >&2
+        fi
+    fi
 fi                                      
 
