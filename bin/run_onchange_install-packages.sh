@@ -12,7 +12,19 @@ done
 
 if [ ${#packages_to_install[@]} -gt 0 ]; then
     echo "📦 Installing missing packages: ${packages_to_install[*]}"
-    sudo apt install -y "${packages_to_install[@]}"
+    failed_packages=()
+    for package in "${packages_to_install[@]}"; do
+        echo "  Installing $package..."
+        if sudo apt install -y "$package" 2>&1; then
+            echo "  ✅ Successfully installed $package"
+        else
+            echo "  ❌ Failed to install $package (package may not be available)" >&2
+            failed_packages+=("$package")
+        fi
+    done
+    if [ ${#failed_packages[@]} -gt 0 ]; then
+        echo "⚠️  Warning: The following packages could not be installed: ${failed_packages[*]}" >&2
+    fi
 else
     echo "✅ All required packages are already installed"
 fi
@@ -79,8 +91,11 @@ if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
 fi
 
 # Change shell
-if [ "$SHELL" != "$(which fish)" ]; then
+fish_path=$(which fish 2>/dev/null)
+if [ -z "$fish_path" ]; then
+    echo "❌ Error: fish is not installed, cannot change shell" >&2
+elif [ "$SHELL" != "$fish_path" ]; then
     echo "🏆 Changing shell to fish..."
-    chsh -s "$(which fish)"             
+    chsh -s "$fish_path"
 fi                                      
 
