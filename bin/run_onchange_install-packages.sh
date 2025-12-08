@@ -4,6 +4,12 @@
 packages_to_install=()
 packages=(curl wget git mc task-spooler tmux git-delta fish fd-find bat neovim gh jq unzip)
 
+# Remove packages not available on Debian 11
+if [ -f /etc/issue ] && grep -q "Debian GNU/Linux 11" /etc/issue; then
+    echo "⚠️  Detected Debian GNU/Linux 11, excluding fish, gh, and git-delta"
+    packages=($(printf '%s\n' "${packages[@]}" | grep -v -E '^(fish|gh|git-delta)$'))
+fi
+
 for package in "${packages[@]}"; do
     if ! dpkg -l | grep -q "^ii  $package "; then
         packages_to_install+=("$package")
