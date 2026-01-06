@@ -87,7 +87,7 @@ end
 function purgehist
     # Add your daily cleanup task here
     echo "Running daily history cleanup at "(date)
-    rmhist -s '^(sgpt|git commit)'
+    rmhist -s '^(sgpt|aichat|git commit)'
     rmhist -s '^(ls|cd\s\.\.)$'
 end
 
