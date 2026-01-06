@@ -76,10 +76,16 @@ if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
 
     # Install xclip for nvim clipboard integration
     if ! dpkg -l | grep -q "^ii  xclip "; then
-        echo "📦 Installing xclip for nvim clipboard integration..."
+        echo "📦 Installing xclip for clipboard integration..."
         sudo apt install -y xclip
     else
         echo "✅ xclip is already installed"
+    fi
+    if ! dpkg -l | grep -q "^ii  colorized-logs "; then
+        echo "📦 Installing colorized-logs for toclip function..."
+        sudo apt install -y colorized-logs
+    else
+        echo "✅ colorized-logs is already installed"
     fi
     # Install FiraCode Nerd Font
     if compgen -G "$HOME/.fonts/FiraCodeNerdFont*" > /dev/null; then
