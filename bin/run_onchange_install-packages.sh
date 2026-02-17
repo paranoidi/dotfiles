@@ -35,6 +35,24 @@ else
     echo "✅ All required packages are already installed"
 fi
 
+if command -v fd >/dev/null 2>&1; then
+    echo "✅ fd command is available"
+elif command -v fdfind >/dev/null 2>&1; then
+    if [ -x /usr/bin/fdfind ]; then
+        if [ -e /usr/local/bin/fd ]; then
+            echo "ℹ️  /usr/local/bin/fd already exists"
+        else
+            echo "🔗 Creating fd symlink for fdfind..."
+            sudo ln -s /usr/bin/fdfind /usr/local/bin/fd
+            echo "✅ fd symlink created"
+        fi
+    else
+        echo "⚠️  fdfind binary not found at /usr/bin/fdfind, cannot create fd link" >&2
+    fi
+else
+    echo "⚠️  Neither fd nor fdfind is available" >&2
+fi
+
 if command -v fzf >/dev/null 2>&1; then
     echo "✅ Fzf is installed"
 else
