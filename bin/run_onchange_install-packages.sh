@@ -71,6 +71,13 @@ else
     sudo apt install -y eza
 fi
 
+if command -v tv >/dev/null 2>&1; then
+    echo "📺 tv is available"
+else
+    echo "📺 Installing tv..."
+    curl -fsSL https://alexpasmantier.github.io/television/install.sh | bash
+fi
+
 if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
     # These will be executed under graphical environment
 

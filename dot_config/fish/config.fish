@@ -78,6 +78,10 @@ if functions -q fzf_configure_bindings
     bind \cP fzf_kill_process
 end
 
+# Remove Alt-PgUp/Down crap
+bind \e\[5\;3\~ ''
+bind \e\[6\;3\~ ''
+
 # Disable history when cursor agent is running
 if set -q CURSOR_AGENT
     set -g fish_history ""
