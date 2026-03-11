@@ -1,5 +1,5 @@
 function chat --description 'aichat defaults with session'
-  if count $argv
+  if test (count $argv) -gt 0
     aichat $argv
   else
     aichat -s

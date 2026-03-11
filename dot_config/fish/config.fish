@@ -15,8 +15,13 @@ set -Ux GIT_EDITOR nvim
 set -x EZA_THEME ~/.config/eza/theme.yml
 
 # Generic binaries
-if test -d "$HOME/bin/"
+if test -d "$HOME/bin/"; and not contains -- $HOME/bin/ $fish_user_paths
     set -gx fish_user_paths $HOME/bin/ $fish_user_paths
+end
+
+# fzf installed via git checkout/install script lives here on some systems
+if test -d "$HOME/.fzf/bin"; and not contains -- $HOME/.fzf/bin $fish_user_paths
+    set -gx fish_user_paths $HOME/.fzf/bin $fish_user_paths
 end
 
 # Source local.fish if it exists
@@ -58,16 +63,20 @@ end
 
 # Automatically install fisher and plugins only for interactive shells
 if status is-interactive; and not set -q __fisher_sync_running
-    if not test -f $fisher_file
-        echo "Installing fisher ..."
-        curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish --create-dirs -o $fisher_file
-    end
+    if not type -q fzf
+        echo "🚫 Skipping fisher bootstrap: fzf is not available on PATH" >&2
+    else
+        if not test -f $fisher_file
+            echo "📦 Installing fisher ..."
+            curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish --create-dirs -o $fisher_file
+        end
 
-    if not functions -q fisher
-        source $fisher_file
-    end
+        if not functions -q fisher
+            source $fisher_file
+        end
 
-    fisher_sync
+        fisher_sync
+    end
 end
 
 # Classic fzf-style keybindings in fish
