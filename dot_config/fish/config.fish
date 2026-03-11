@@ -24,9 +24,12 @@ if test -f (dirname (status -f))/local.fish
     source (dirname (status -f))/local.fish
 end
 
+set -q XDG_CONFIG_HOME; or set -gx XDG_CONFIG_HOME ~/.config
+set -l fisher_file $XDG_CONFIG_HOME/fish/functions/fisher.fish
+
 # Add helper to install all plugins
 function fisher_sync
-    if not type -q fisher
+    if set -q __fisher_sync_running
         return
     end
 
@@ -34,22 +37,38 @@ function fisher_sync
         return
     end
 
+    if not functions -q fisher
+        if test -f $XDG_CONFIG_HOME/fish/functions/fisher.fish
+            source $XDG_CONFIG_HOME/fish/functions/fisher.fish
+        else
+            return
+        end
+    end
+
+    set -gx __fisher_sync_running 1
+
     for plugin in (string match -rv '^\s*(#|$)' < ~/.config/fish/fish_plugins)
         if not fisher list | grep -qx -- $plugin
             fisher install $plugin
         end
     end
+
+    set -e __fisher_sync_running
 end
 
-# Automatically install fisher
-if not type -q fisher
-    echo "Installing fisher ..."
-    set -q XDG_CONFIG_HOME; or set -gx XDG_CONFIG_HOME ~/.config
-    curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish --create-dirs -o $XDG_CONFIG_HOME/fish/functions/fisher.fish
-    source $XDG_CONFIG_HOME/fish/functions/fisher.fish
-end
+# Automatically install fisher and plugins only for interactive shells
+if status is-interactive; and not set -q __fisher_sync_running
+    if not test -f $fisher_file
+        echo "Installing fisher ..."
+        curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish --create-dirs -o $fisher_file
+    end
 
-fisher_sync
+    if not functions -q fisher
+        source $fisher_file
+    end
+
+    fisher_sync
+end
 
 # Classic fzf-style keybindings in fish
 if functions -q fzf_configure_bindings
