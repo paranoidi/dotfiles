@@ -26,21 +26,30 @@ end
 
 # Add helper to install all plugins
 function fisher_sync
-    for plugin in (cat ~/.config/fish/fish_plugins)
-        if not fisher list | grep -qx $plugin
+    if not type -q fisher
+        return
+    end
+
+    if not test -f ~/.config/fish/fish_plugins
+        return
+    end
+
+    for plugin in (string match -rv '^\s*(#|$)' < ~/.config/fish/fish_plugins)
+        if not fisher list | grep -qx -- $plugin
             fisher install $plugin
         end
     end
 end
 
 # Automatically install fisher
-if not functions -q fisher
+if not type -q fisher
     echo "Installing fisher ..."
-    set -q XDG_CONFIG_HOME; or set XDG_CONFIG_HOME ~/.config
-    curl https://git.io/fisher --create-dirs -sLo $XDG_CONFIG_HOME/fish/functions/fisher.fish
-    fish -c fisher
-    fisher_sync
+    set -q XDG_CONFIG_HOME; or set -gx XDG_CONFIG_HOME ~/.config
+    curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish --create-dirs -o $XDG_CONFIG_HOME/fish/functions/fisher.fish
+    source $XDG_CONFIG_HOME/fish/functions/fisher.fish
 end
+
+fisher_sync
 
 # Classic fzf-style keybindings in fish
 if functions -q fzf_configure_bindings
@@ -87,12 +96,18 @@ if set -q CURSOR_AGENT
     set -g fish_history ""
 end
 
-# Function to run once every 24 hours
+# Daily maintenance operations
 function purgehist
-    # Add your daily cleanup task here
-    echo "Running daily history cleanup at "(date)
-    rmhist -s '^(sgpt|aichat|git commit)'
-    rmhist -s '^(ls|cd\s\.\.)$'
+    tsp rmhist -s '^(sgpt|aichat|git commit)' > /dev/null
+    tsp rmhist -s '^(ls|cd\s\.\.)$' > /dev/null
+end
+
+function update_pi
+  if type -q nvm
+      tsp fish -c "nvm use latest && npm install -g @mariozechner/pi-coding-agent" > /dev/null
+  else
+      echo "🚫 nvm is not installed on this machine"
+  end
 end
 
 function check_and_run_daily
@@ -124,7 +139,9 @@ function check_and_run_daily
     
     # Run the function and update timestamp
     if test "$should_run" = "true"
+        echo "Running daily tasks in background at "(date)
         purgehist
+        update_pi
         echo $current_time > $timestamp_file
     end
 end
