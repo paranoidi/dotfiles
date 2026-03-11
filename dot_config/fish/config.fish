@@ -14,16 +14,6 @@ set -Ux GIT_EDITOR nvim
 # Point eza to your custom theme
 set -x EZA_THEME ~/.config/eza/theme.yml
 
-# Generic binaries
-if test -d "$HOME/bin/"; and not contains -- $HOME/bin/ $fish_user_paths
-    set -gx fish_user_paths $HOME/bin/ $fish_user_paths
-end
-
-# fzf installed via git checkout/install script lives here on some systems
-if test -d "$HOME/.fzf/bin"; and not contains -- $HOME/.fzf/bin $fish_user_paths
-    set -gx fish_user_paths $HOME/.fzf/bin $fish_user_paths
-end
-
 # Source local.fish if it exists
 if test -f (dirname (status -f))/local.fish
     source (dirname (status -f))/local.fish
@@ -67,7 +57,7 @@ if status is-interactive; and not set -q __fisher_sync_running
         echo "🚫 Skipping fisher bootstrap: fzf is not available on PATH" >&2
     else
         if not test -f $fisher_file
-            echo "📦 Installing fisher ..."
+            echo "Installing fisher ..."
             curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish --create-dirs -o $fisher_file
         end
 
