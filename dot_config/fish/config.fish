@@ -122,7 +122,9 @@ end
 
 function update_pi
   if type -q nvm
-      tsp fish -c "nvm use latest && npm install -g @mariozechner/pi-coding-agent" > /dev/null
+      #tsp fish -c "nvm use latest && npm install -g @mariozechner/pi-coding-agent" > /dev/null
+      # Let's keep JS stuff 7 days old since they can't keep their supplychain secure
+      tsp fish -c "nvm use latest && node ~/bin/install-pi-7d.js" > /dev/null
   else
       echo "🚫 nvm is not installed on this machine"
   end
