@@ -3,7 +3,7 @@
 # Check and install packages only if they're not already installed
 packages_to_install=()
 packages=(curl wget git mc task-spooler tmux git-delta fish fd-find bat neovim gh jq unzip)
-gui_packages=(phinger-cursor-theme)
+gui_packages=(phinger-cursor-theme fonts-ubuntu-classic)
 
 # Add GUI packages to install list
 if [[ -n "$DISPLAY" || -n "$WAYLAND_DISPLAY" ]] || \
