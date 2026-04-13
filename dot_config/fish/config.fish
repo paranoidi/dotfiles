@@ -130,45 +130,74 @@ function update_pi
   end
 end
 
-function check_and_run_daily
-    # Store timestamp in ~/.cache/fish/
+function update_fzf
+    if type -q fzf
+      cd ~/.fzf/
+      git pull
+      ~/.fzf/install --no-bash --no-fish --no-zsh --no-key-bindings --no-completion --no-update-rc
+    else
+      echo "🚫 fzf is not installed on this machine"
+    end
+end
+
+function check_and_run_periodic
+    # Cache directory
     set -l cache_dir ~/.cache/fish
-    set -l timestamp_file $cache_dir/last_daily_run
-    
-    # Create cache directory if it doesn't exist
+    set -l daily_file $cache_dir/last_daily_run
+    set -l weekly_file $cache_dir/last_weekly_run
+
+    # Ensure cache directory exists
     if not test -d $cache_dir
         mkdir -p $cache_dir
     end
-    
+
     set -l current_time (date +%s)
-    set -l should_run false
-    
-    # Check if timestamp file exists
-    if test -f $timestamp_file
-        set -l last_run (cat $timestamp_file)
-        # Calculate time difference in seconds (24 hours = 86400 seconds)
-        set -l time_diff (math $current_time - $last_run)
-        
-        if test $time_diff -ge 86400
-            set should_run true
+
+    # ---- DAILY CHECK ----
+    set -l run_daily false
+
+    if test -f $daily_file
+        set -l last_run (cat $daily_file)
+        set -l diff (math $current_time - $last_run)
+
+        if test $diff -ge 86400
+            set run_daily true
         end
     else
-        # First run, no timestamp file exists
-        set should_run true
+        set run_daily true
     end
-    
-    # Run the function and update timestamp
-    if test "$should_run" = "true"
-        echo "Running daily tasks in background at "(date)
+
+    if test "$run_daily" = "true"
+        echo "Running DAILY tasks at "(date)
         purgehist
         update_pi
-        echo $current_time > $timestamp_file
+        echo $current_time > $daily_file
+    end
+
+    # ---- WEEKLY CHECK ----
+    set -l run_weekly false
+
+    if test -f $weekly_file
+        set -l last_run (cat $weekly_file)
+        set -l diff (math $current_time - $last_run)
+
+        if test $diff -ge 604800  # 7 days
+            set run_weekly true
+        end
+    else
+        set run_weekly true
+    end
+
+    if test "$run_weekly" = "true"
+        echo "Running WEEKLY tasks at "(date)
+        update_fzf
+        echo $current_time > $weekly_file
     end
 end
 
 # Run daily check in interactive sessions
 if status is-interactive
-    check_and_run_daily
+    check_and_run_periodic
 end
 
 # Use starship prompt if installed
