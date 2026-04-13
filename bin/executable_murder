@@ -1,0 +1,173 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# ///
+"""Escalating process kill: TERM → INT → HUP → KILL
+
+More graceful than kill -9 — gives the process a chance to clean up.
+
+Usage:
+    murder <name>     Kill by process name
+    murder 123        Kill by PID
+    murder :3000      Kill by port
+    murder ruby :3000 Multiple arguments
+"""
+
+import os
+import signal
+import subprocess
+import sys
+import time
+
+SIGNALS = [
+    (signal.SIGTERM, 2),
+    (signal.SIGINT, 2),
+    (signal.SIGHUP, 2),
+    (signal.SIGKILL, 0),
+]
+
+MY_PID = os.getpid()
+
+
+def is_running(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def get_command(pid: int) -> str:
+    try:
+        result = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "command="],
+            capture_output=True, text=True,
+        )
+        return result.stdout.strip()
+    except Exception:
+        return "<unknown>"
+
+
+def confirm(prompt: str) -> bool:
+    try:
+        answer = input(f"{prompt} ").strip().lower()
+        return answer in ("y", "yes", "yas")
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+
+
+def murder_pid(pid: int) -> None:
+    for sig, wait in SIGNALS:
+        if not is_running(pid):
+            break
+        print(f"  Sending {sig.name} to {pid}...")
+        try:
+            os.kill(pid, sig)
+        except OSError:
+            break
+        if wait > 0:
+            time.sleep(0.5)
+            if is_running(pid):
+                time.sleep(wait)
+
+    if is_running(pid):
+        print(f"  Warning: {pid} may still be running.", file=sys.stderr)
+    else:
+        print(f"  {pid} terminated.")
+
+
+def murder_by_pid(pid: int) -> None:
+    if not is_running(pid):
+        print(f"No process with PID {pid}", file=sys.stderr)
+        return
+    cmd = get_command(pid)
+    if confirm(f"murder {cmd} (pid {pid})?"):
+        murder_pid(pid)
+
+
+def murder_by_port(port_arg: str) -> None:
+    while True:
+        result = subprocess.run(
+            ["lsof", "-i", port_arg],
+            capture_output=True, text=True,
+        )
+        if not result.stdout.strip():
+            print(f"No processes on port {port_arg}")
+            return
+
+        looped = False
+        for line in result.stdout.splitlines()[1:]:
+            parts = line.split(None, 2)
+            if len(parts) < 2:
+                continue
+            pid = int(parts[1])
+            if pid == MY_PID:
+                continue
+            cmd = get_command(pid)
+            if confirm(f"murder {cmd} (pid {pid})?"):
+                murder_pid(pid)
+                looped = True
+                break
+
+        if not looped:
+            break
+
+
+def murder_by_name(name: str) -> None:
+    while True:
+        result = subprocess.run(
+            ["pgrep", "-fi", name],
+            capture_output=True, text=True,
+        )
+        pids = [
+            int(p) for p in result.stdout.split()
+            if int(p) != MY_PID
+        ]
+        if not pids:
+            print(f"No processes matching '{name}'")
+            return
+
+        looped = False
+        for pid in pids:
+            cmd = get_command(pid)
+            if confirm(f"murder {cmd} (pid {pid})?"):
+                murder_pid(pid)
+                looped = True
+                break
+
+        if not looped:
+            break
+
+
+def is_int(s: str) -> bool:
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
+
+def murder(arg: str) -> None:
+    if is_int(arg):
+        murder_by_pid(int(arg))
+    elif arg.startswith(":") and is_int(arg[1:]):
+        murder_by_port(arg)
+    else:
+        murder_by_name(arg)
+
+
+def main() -> None:
+    if len(sys.argv) < 2:
+        print("usage:", file=sys.stderr)
+        print("  murder 123     kill by pid", file=sys.stderr)
+        print("  murder ruby    kill by process name", file=sys.stderr)
+        print("  murder :3000   kill by port", file=sys.stderr)
+        sys.exit(1)
+
+    for arg in sys.argv[1:]:
+        murder(arg)
+
+
+if __name__ == "__main__":
+    main()
