@@ -134,7 +134,7 @@ ensure_fd_symlink() {
 
 install_fzf() {
     if ! _want_install_cmd fzf; then
-        echo "✅ Fzf is installed"
+        echo "✅ Fzf is available"
         return 0
     fi
     echo "🌐 Installing fzf from github"
@@ -163,7 +163,7 @@ install_starship() {
     set +o pipefail
     set -e
     if [[ "$starship_exit_code" -eq 0 ]] && printf '%s' "$output" | grep -Fq "Starship latest installed"; then
-        echo "🎉 Starship installed successfully"
+        echo "✅ Starship installed successfully"
     else
         echo "❌ Starship installation had issues (exit code: ${starship_exit_code}, or missing success line), but continuing..." >&2
     fi
