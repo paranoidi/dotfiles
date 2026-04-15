@@ -32,6 +32,29 @@ _want_install_apt_pkg() {
     ! _apt_pkg_is_installed "$1"
 }
 
+# browser_download_url for an asset on the latest GitHub release (public API; no gh CLI).
+# Usage: _github_latest_release_asset_url owner/repo exact_asset_filename
+# Optional: GITHUB_TOKEN or GH_TOKEN raises REST rate limits.
+_github_latest_release_asset_url() {
+    local repo=$1
+    local asset_name=$2
+    local api_url="https://api.github.com/repos/${repo}/releases/latest"
+    local auth=()
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+        auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+    elif [[ -n "${GH_TOKEN:-}" ]]; then
+        auth=(-H "Authorization: Bearer ${GH_TOKEN}")
+    fi
+    curl -fsSL \
+        -H "Accept: application/vnd.github+json" \
+        -H "User-Agent: run_onchange-install-packages" \
+        "${auth[@]}" \
+        "$api_url" \
+        | jq -r --arg name "$asset_name" \
+            '.assets[] | select(.name == $name) | .browser_download_url' \
+        | head -n1
+}
+
 # Prompt for sudo once up front so password is not requested mid-run.
 _require_sudo() {
     if [[ "$(id -u)" -eq 0 ]]; then
@@ -114,7 +137,7 @@ install_fzf() {
         echo "✅ Fzf is installed"
         return 0
     fi
-    echo "📦 Installing fzf from github"
+    echo "🌐 Installing fzf from github"
     rm -rf ~/.fzf
     git clone -q --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
     # Upstream install has no --quiet; curl is invoked without -s, so silence the script output.
@@ -303,7 +326,7 @@ install_zellij() {
         exit 1
     fi
     local PATTERN="zellij-no-web-${zellij_linux_triple}.tar.gz"
-    local REQUIRED_TOOLS=(gh jq curl tar)
+    local REQUIRED_TOOLS=(jq curl tar)
 
     local tool
     for tool in "${REQUIRED_TOOLS[@]}"; do
@@ -316,8 +339,7 @@ install_zellij() {
     mkdir -p "$INSTALL_DIR"
 
     local URL
-    URL="$(gh api "repos/$REPO/releases/latest" --jq \
-      ".assets[] | select(.name == \"$PATTERN\") | .browser_download_url")"
+    URL="$(_github_latest_release_asset_url "$REPO" "$PATTERN")"
 
     if [[ -z "$URL" ]]; then
       echo "❌ No release asset named ${PATTERN}" >&2
