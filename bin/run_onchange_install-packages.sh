@@ -305,8 +305,6 @@ install_zellij() {
     local PATTERN="zellij-no-web-${zellij_linux_triple}.tar.gz"
     local REQUIRED_TOOLS=(gh jq curl tar)
 
-    echo "🤔 Installing zellij for ${zellij_linux_triple}"
-
     local tool
     for tool in "${REQUIRED_TOOLS[@]}"; do
       if ! command -v "$tool" >/dev/null 2>&1; then
@@ -326,10 +324,8 @@ install_zellij() {
       exit 1
     fi
 
-    echo ""
     echo "🌐 Downloading ${PATTERN}..."
     curl --progress-bar -L -o "$PATTERN" "$URL"
-    echo ""
 
     echo "💾 Extracting and installing to ${INSTALL_DIR}..."
     tar -xzf "$PATTERN"
@@ -337,7 +333,6 @@ install_zellij() {
     mv zellij "$INSTALL_DIR/"
     chmod +x "$INSTALL_DIR/zellij"
 
-    echo "💀 Removing ${PATTERN}..."
     rm "$PATTERN"
 
     local ver
