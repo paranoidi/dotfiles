@@ -51,6 +51,7 @@ install_apt_packages() {
         packages+=("${gui_packages[@]}")
     fi
 
+    # Raspberry Pi OS
     if [ -f /etc/issue ] && grep -q "Debian GNU/Linux 11" /etc/issue; then
         echo "⚠️  Detected Debian GNU/Linux 11, excluding fish, gh, and git-delta"
         packages=($(printf '%s\n' "${packages[@]}" | grep -v -E '^(fish|gh|git-delta)$'))
@@ -164,7 +165,7 @@ install_tv() {
         echo "✅ tv is available"
         return 0
     fi
-    echo "📺 Installing tv..."
+    echo "🌐 Installing tv..."
     # Upstream install.sh is chatty (banner, [INFO], curl -LO progress, verbose dpkg).
     # Debian/Ubuntu: download .deb with silent curl and install via apt-get -qq.
     local github_latest='https://api.github.com/repos/alexpasmantier/television/releases/latest'
