@@ -8,5 +8,5 @@ installed=$(dpkg-query -W -f='${binary:Package}\n' $packages 2>/dev/null)
 if [ -n "$installed" ]; then
     sudo apt remove $installed
 else
-    echo "No listed packages are installed."
+    echo "✅ No listed packages are installed."
 fi
