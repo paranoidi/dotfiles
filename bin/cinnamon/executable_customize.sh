@@ -70,7 +70,7 @@ disable_grouped_window_list_super_num() {
 
 install_polkit_password_rules() {
     echo "🔧 Installing password policy rules..."
-    sudo cp 10-my.rules /etc/polkit-1/rules.d/
+    sudo cp resources/10-my.rules /etc/polkit-1/rules.d/
 }
 
 customize_cinnamon
