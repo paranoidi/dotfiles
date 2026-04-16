@@ -46,7 +46,7 @@ disable_grouped_window_list_super_num() {
             for file in "$JSON_DIR"/*.json; do
                 [ -f "$file" ] || continue
                 FOUND=1
-                echo "Processing $file"
+                echo "➡️ Processing $file"
 
                 # Use jq to safely set nested value
                 tmp=$(mktemp)
