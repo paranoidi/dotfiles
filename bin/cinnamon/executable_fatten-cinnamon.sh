@@ -1,7 +1,7 @@
 # -------------------------
 # APT packages (edit here)
 # -------------------------
-apt_packages=""
+apt_packages="spotify-client"
 
 # -------------------------
 # Flatpak packages (edit here)
