@@ -1,7 +1,7 @@
 # -------------------------
 # APT packages (edit here)
 # -------------------------
-apt_packages="spotify-client keepassxc htop"
+apt_packages="spotify-client keepassxc htop silversearcher-ag copyq"
 
 # -------------------------
 # Flatpak packages (edit here)
