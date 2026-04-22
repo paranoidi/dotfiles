@@ -71,6 +71,11 @@ end
 
 # Classic fzf-style keybindings in fish
 if functions -q fzf_configure_bindings
+    # fzf.fish installs canonical key name bindings (ctrl-r, ctrl-v, ctrl-alt-*)
+    # which cause a 'c' input delay due to fish key sequence disambiguation.
+    # Disable them all here; we manage all bindings manually below.
+    fzf_configure_bindings --directory= --git_log= --git_status= --history= --processes= --variables=
+
     # Ctrl+T → insert file path
     function fzf_insert_file
         set file (_fzf_search_directory)

@@ -53,7 +53,6 @@ function cz
     # ------------------------------------------------------------
     case update u
         echo "🌐 cz update"
-        echo ""
 
         chezmoi update
         chezmoi apply
@@ -66,7 +65,6 @@ function cz
     # ------------------------------------------------------------
     case add a
         echo "🛠️ cz add - Importing local changes into chezmoi"
-        echo ""
 
         __cz_import_changes
 
@@ -111,7 +109,7 @@ function cz
     # COMMIT (safe + smart)
     # ------------------------------------------------------------
     case commit c
-        echo "🛠️ cz commit"
+        echo "💾 cz commit"
 
         set modified (__cz_modified_files)
         if test (count $modified) -gt 0
@@ -143,7 +141,7 @@ function cz
         chezmoi git -- add -A
         chezmoi git -- commit -m "$msg"
 
-        echo "💾 Committed"
+        echo "✅ Committed"
         return 0
 
     # ------------------------------------------------------------
@@ -160,7 +158,6 @@ function cz
     # ------------------------------------------------------------
     case reconcile r
         echo "🛠️ cz reconcile"
-        echo ""
 
         cz update
         cz add
