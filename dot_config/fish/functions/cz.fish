@@ -79,10 +79,10 @@ function cz
                 echo "  - $f"
             end
 
-            read -P "Remove these from chezmoi source as well? [y/N] " confirm
+            read -P "❓ Remove these from chezmoi source as well? [y/N] " confirm
             if test "$confirm" = "y"
                 for f in $deleted
-                    echo "  removing: $f"
+                    echo "💀 $f"
                     chezmoi forget "$f"
                 end
             end
