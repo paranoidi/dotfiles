@@ -1,4 +1,6 @@
-# Define the package list (edit this line as needed)
+#!/usr/bin/env bash
+
+# To be removed
 packages="warpinator celluloid hypnotix matrix rhythmbox transmission transmission-common thunderbird drawing simple-scan"
 
 # Filter only installed packages
