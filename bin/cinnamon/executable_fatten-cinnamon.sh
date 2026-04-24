@@ -3,7 +3,7 @@
 # -------------------------
 # APT packages (edit here)
 # -------------------------
-apt_packages="spotify-client keepassxc htop silversearcher-ag copyq"
+apt_packages="spotify-client keepassxc htop silversearcher-ag copyq shellcheck"
 
 # -------------------------
 # Flatpak packages (edit here)

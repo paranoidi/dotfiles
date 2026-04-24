@@ -2,6 +2,9 @@ if status is-interactive
     # Commands to run in interactive sessions can go here
 end
 
+# Remove greeting message
+set -g fish_greeting
+
 # Fix locales
 set -Ux LANG en_US.UTF-8
 set -Ux LC_ALL en_US.UTF-8
