@@ -1,3 +1,5 @@
+[include]
+    path = .gitconfig.local
 [core]
    	pager = delta
 [interactive]
@@ -30,9 +32,6 @@
 	out = log @{u}..
 	lg = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr)%C(bold blue)<%an>%Creset' --abbrev-commit
     fixup = "!f() { TARGET=$(git rev-parse "$1"); git commit --fixup=$TARGET ${@:2} && EDITOR=true git rebase -i --autostash --autosquash $TARGET^; }; f"
-[user]
-	name = paranoidi
-	email = marko.koivusalo@gmail.com
 [credential "https://github.com"]
 	helper = 
 	helper = !/usr/bin/gh auth git-credential

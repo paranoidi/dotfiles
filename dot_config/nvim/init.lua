@@ -11,6 +11,10 @@ vim.opt.mouse = ""
 vim.opt.number = true
 vim.opt.relativenumber = true
 
+-- ─── Customizatiopn  ─────────────────────────────────────────────
+-- Trim trailing spaces
+vim.keymap.set("x", "<leader>ts", ":s/\\s\\+$//e<CR>", { silent = true })
+
 -- ─── Filetype Specific ───────────────────────────────────────────
 -- Python: 4 spaces (PEP 8 standard)
 vim.api.nvim_create_autocmd("FileType", {

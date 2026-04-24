@@ -32,7 +32,7 @@ if [[ "$REPO_ROOT" != "$CURRENT_DIR" ]]; then
   exit 1
 fi
 
-# ----------------------------
+# ---------------------------- 
 # Extract origin URL
 # ----------------------------
 ORIGIN_URL="$(git config --get remote.origin.url)"
@@ -46,11 +46,13 @@ fi
 # Parse GitHub owner/repo from URL
 # Supports:
 #   git@github.com:OWNER/REPO.git
+#   git@ALIAS:OWNER/REPO.git
 #   https://github.com/OWNER/REPO.git
 # ----------------------------
 OWNER_REPO="$(
   echo "$ORIGIN_URL" \
   | sed -E 's#.*github\.com[:/]+##' \
+  | sed -E 's#.*github-[a-z0-9]+[:/]+##' \
   | sed -E 's#\.git$##'
 )"
 
@@ -94,13 +96,24 @@ else
   echo "SSH alias '$ALIAS' already exists in config (not modifying)."
 fi
 
-# ----------------------------
-# Switch repo remote to alias
-# ----------------------------
+# ---------------------------
+# Switch repo remote to alias 
+# ---------------------------
 NEW_URL="git@$ALIAS:$OWNER/$REPO.git"
 
-echo "Setting origin to: $NEW_URL"
-git remote set-url origin "$NEW_URL"
+if [[ "$ORIGIN_URL" == "$NEW_URL" ]]; then
+  echo "Origin is already set to: $NEW_URL"
+else
+  echo "Updating origin from: $ORIGIN_URL"
+  echo "             to: $NEW_URL"
+  git remote set-url origin "$NEW_URL"
+fi
+
+# ----------------------
+# Switch repo user to me
+# ----------------------
+git config user.name "paranoidi"
+git config user.email "marko.koivusalo@gmail.com"
 
 echo "Done."
-echo "You can now push without gh auth switching."
+

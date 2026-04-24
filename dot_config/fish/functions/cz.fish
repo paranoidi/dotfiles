@@ -36,16 +36,16 @@ function cz
     # HELP
     # ------------------------------------------------------------
     case help
-        echo "cz - chezmoi workflow helper (fish)"
+        echo "cz - chezmoi workflow helper"
         echo ""
         echo "Commands:"
-        echo "  cz update (u)    → pull latest state + apply to \$HOME"
-        echo "  cz add (a)       → import local changes into chezmoi"
-        echo "  cz status (s)    → show status diff"
-        echo "  cz diff (d)      → show detailed diff"
-        echo "  cz commit (c)    → import + git commit"
-        echo "  cz push (p)      → push commits to remote"
-        echo "  cz reconcile (r) → full sync cycle"
+        echo "  cz update (u)  → Pull latest state + apply to \$HOME"
+        echo "  cz add (a)     → Add all local changes into chezmoi"
+        echo "  cz status (s)  → Show status diff"
+        echo "  cz diff (d)    → Show detailed diff"
+        echo "  cz record (r)  → Add all changes + git commit [message]"
+        echo "  cz push (p)    → Push commits to remote"
+        echo "  cz full (f)    → Full sync cycle"
         return 0
 
     # ------------------------------------------------------------
@@ -102,14 +102,15 @@ function cz
     # ------------------------------------------------------------
     case diff d
         echo "🛠️ cz diff"
-        chezmoi diff
+        # Reverse diff direction so local additions appear as '+' (green).
+        chezmoi diff --reverse
         return 0
 
     # ------------------------------------------------------------
-    # COMMIT (safe + smart)
+    # RECORD (safe + smart)
     # ------------------------------------------------------------
-    case commit c
-        echo "💾 cz commit"
+    case record r
+        echo "💾 cz record"
 
         set modified (__cz_modified_files)
         if test (count $modified) -gt 0
@@ -120,7 +121,7 @@ function cz
 
         if test (count $deleted) -gt 0
             echo ""
-            echo "⚠️ Deleted files detected (not auto-handled in commit):"
+            echo "⚠️ Deleted files detected (not auto-handled in record):"
             for f in $deleted
                 echo "  - $f"
             end
@@ -129,11 +130,11 @@ function cz
 
         # check if anything actually staged in git
         if not chezmoi git -- status --porcelain | string length -q
-            echo "ℹ️ Nothing to commit"
+            echo "ℹ️ Nothing to record"
             return 0
         end
 
-        set msg $argv[2]
+        set msg (string join ' ' $argv[2..-1])
         if test -z "$msg"
             set msg "Update dotfiles"
         end
@@ -141,7 +142,7 @@ function cz
         chezmoi git -- add -A
         chezmoi git -- commit -m "$msg"
 
-        echo "✅ Committed"
+        echo "✅ Recorded"
         return 0
 
     # ------------------------------------------------------------
@@ -154,16 +155,16 @@ function cz
         return 0
 
     # ------------------------------------------------------------
-    # RECONCILE (full pipeline)
+    # FULL (full pipeline)
     # ------------------------------------------------------------
-    case reconcile r
-        echo "🛠️ cz reconcile"
+    case full f
+        echo "🛠️ cz full"
 
         cz update
         cz add
-        cz commit "Reconcile dotfiles"
+        cz record "Full sync dotfiles"
 
-        echo "✅ Reconcile complete"
+        echo "✅ Full sync complete"
         return 0
 
     # ------------------------------------------------------------
