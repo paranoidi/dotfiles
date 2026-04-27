@@ -1,0 +1,255 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Helper functions
+die() {
+    echo "Error: $*" >&2
+    exit 1
+}
+
+need() {
+    command -v "$1" >/dev/null 2>&1 || die "Missing dependency: $1"
+}
+
+usage() {
+    cat <<'EOF'
+httpcode - HTTP status code lookup
+
+Usage:
+  httpcode <code>    Display info for a specific HTTP status code
+  httpcode           Interactive mode - browse all status codes
+  httpcode --help    Show this help message
+
+Examples:
+  httpcode 404       Show info for "404 Not Found"
+  httpcode 200       Show info for "200 OK"
+  httpcode           Browse all codes interactively
+EOF
+}
+
+# Get HTTP status info (name and description)
+get_http_info() {
+    local code=$1
+    local name desc
+
+    case $code in
+        # 1xx Informational
+        100) name="Continue"; desc="The server has received the request headers and the client should proceed to send the request body." ;;
+        101) name="Switching Protocols"; desc="The server is switching protocols as requested by the client." ;;
+        102) name="Processing"; desc="The server has received and is processing the request, but no response is available yet." ;;
+        103) name="Early Hints"; desc="Used to return some response headers before final HTTP message." ;;
+
+        # 2xx Success
+        200) name="OK"; desc="The request has succeeded." ;;
+        201) name="Created"; desc="The request has been fulfilled and a new resource has been created." ;;
+        202) name="Accepted"; desc="The request has been accepted for processing, but processing is not complete." ;;
+        203) name="Non-Authoritative Information"; desc="The request was successful but the enclosed payload has been modified by a transforming proxy." ;;
+        204) name="No Content"; desc="The server successfully processed the request but is not returning any content." ;;
+        205) name="Reset Content"; desc="The server successfully processed the request and is instructing the client to reset the document view." ;;
+        206) name="Partial Content"; desc="The server is delivering only part of the resource due to a range header sent by the client." ;;
+        207) name="Multi-Status"; desc="The message body contains multiple status codes for different operations." ;;
+        208) name="Already Reported"; desc="The members of a DAV binding have already been enumerated in a previous reply." ;;
+        226) name="IM Used"; desc="The server has fulfilled a request for the resource with instance manipulations applied." ;;
+
+        # 3xx Redirection
+        300) name="Multiple Choices"; desc="The request has more than one possible response and the user should choose one." ;;
+        301) name="Moved Permanently"; desc="The requested resource has been permanently moved to a new URL." ;;
+        302) name="Found"; desc="The requested resource temporarily resides under a different URL." ;;
+        303) name="See Other"; desc="The response to the request can be found under a different URL using a GET method." ;;
+        304) name="Not Modified"; desc="The resource has not been modified since the last request." ;;
+        305) name="Use Proxy"; desc="The requested resource must be accessed through the proxy specified in the Location header." ;;
+        307) name="Temporary Redirect"; desc="The request should be repeated with another URL but future requests should use the original URL." ;;
+        308) name="Permanent Redirect"; desc="The request and all future requests should be repeated using another URL." ;;
+
+        # 4xx Client Error
+        400) name="Bad Request"; desc="The server cannot process the request due to a client error." ;;
+        401) name="Unauthorized"; desc="Authentication is required and has failed or has not been provided." ;;
+        402) name="Payment Required"; desc="Reserved for future use. Originally intended for digital payment systems." ;;
+        403) name="Forbidden"; desc="The server understood the request but refuses to authorize it." ;;
+        404) name="Not Found"; desc="The requested resource could not be found on the server." ;;
+        405) name="Method Not Allowed"; desc="The request method is not supported for the requested resource." ;;
+        406) name="Not Acceptable"; desc="The requested resource cannot generate content acceptable according to the Accept headers." ;;
+        407) name="Proxy Authentication Required"; desc="The client must first authenticate itself with the proxy." ;;
+        408) name="Request Timeout"; desc="The server timed out waiting for the request from the client." ;;
+        409) name="Conflict"; desc="The request could not be completed due to a conflict with the current state of the resource." ;;
+        410) name="Gone"; desc="The requested resource is no longer available and will not be available again." ;;
+        411) name="Length Required"; desc="The request did not specify the length of its content, which is required by the resource." ;;
+        412) name="Precondition Failed"; desc="The server does not meet one of the preconditions specified in the request headers." ;;
+        413) name="Payload Too Large"; desc="The request is larger than the server is willing or able to process." ;;
+        414) name="URI Too Long"; desc="The URI provided was too long for the server to process." ;;
+        415) name="Unsupported Media Type"; desc="The request entity has a media type which the server does not support." ;;
+        416) name="Range Not Satisfiable"; desc="The client has asked for a portion of the file that the server cannot supply." ;;
+        417) name="Expectation Failed"; desc="The server cannot meet the requirements of the Expect request-header field." ;;
+        418) name="I'm a teapot"; desc="The server refuses to brew coffee because it is, permanently, a teapot." ;;
+        421) name="Misdirected Request"; desc="The request was directed at a server that is not able to produce a response." ;;
+        422) name="Unprocessable Entity"; desc="The request was well-formed but contains semantic errors." ;;
+        423) name="Locked"; desc="The resource that is being accessed is locked." ;;
+        424) name="Failed Dependency"; desc="The request failed due to failure of a previous request." ;;
+        425) name="Too Early"; desc="The server is unwilling to risk processing a request that might be replayed." ;;
+        426) name="Upgrade Required"; desc="The client should switch to a different protocol." ;;
+        428) name="Precondition Required"; desc="The server requires the request to be conditional." ;;
+        429) name="Too Many Requests"; desc="The user has sent too many requests in a given amount of time." ;;
+        431) name="Request Header Fields Too Large"; desc="The server is unwilling to process the request because its header fields are too large." ;;
+        451) name="Unavailable For Legal Reasons"; desc="The resource is unavailable due to legal reasons." ;;
+
+        # 5xx Server Error
+        500) name="Internal Server Error"; desc="The server encountered an unexpected condition that prevented it from fulfilling the request." ;;
+        501) name="Not Implemented"; desc="The server does not support the functionality required to fulfill the request." ;;
+        502) name="Bad Gateway"; desc="The server received an invalid response from an upstream server." ;;
+        503) name="Service Unavailable"; desc="The server is currently unable to handle the request due to temporary overloading or maintenance." ;;
+        504) name="Gateway Timeout"; desc="The server did not receive a timely response from an upstream server." ;;
+        505) name="HTTP Version Not Supported"; desc="The server does not support the HTTP protocol version used in the request." ;;
+        506) name="Variant Also Negotiates"; desc="Transparent content negotiation for the request results in a circular reference." ;;
+        507) name="Insufficient Storage"; desc="The server is unable to store the representation needed to complete the request." ;;
+        508) name="Loop Detected"; desc="The server detected an infinite loop while processing the request." ;;
+        510) name="Not Extended"; desc="Further extensions to the request are required for the server to fulfill it." ;;
+        511) name="Network Authentication Required"; desc="The client needs to authenticate to gain network access." ;;
+
+        *) return 1 ;;
+    esac
+
+    echo "$name"
+    echo "$desc"
+}
+
+# Get color based on status code category
+get_category_color() {
+    local code=$1
+    local category=$((code / 100))
+
+    case $category in
+        1) echo "6" ;;  # Cyan for 1xx
+        2) echo "2" ;;  # Green for 2xx
+        3) echo "4" ;;  # Blue for 3xx
+        4) echo "3" ;;  # Yellow for 4xx
+        5) echo "1" ;;  # Red for 5xx
+        *) echo "7" ;;  # White for unknown
+    esac
+}
+
+# Display status code with formatting
+display_status() {
+    local code=$1
+    local info
+
+    if ! info=$(get_http_info "$code"); then
+        die "Unknown HTTP status code: $code"
+    fi
+
+    local name desc
+    name=$(echo "$info" | sed -n '1p')
+    desc=$(echo "$info" | sed -n '2p')
+
+    local color
+    color=$(get_category_color "$code")
+
+    gum style \
+        --border rounded \
+        --padding "1 2" \
+        --margin 1 \
+        --foreground "$color" \
+        --bold \
+        "$code $name" \
+        "" \
+        "$desc"
+}
+
+# Get all status codes for interactive mode
+get_all_codes() {
+    cat <<'EOF'
+100 Continue
+101 Switching Protocols
+102 Processing
+103 Early Hints
+200 OK
+201 Created
+202 Accepted
+203 Non-Authoritative Information
+204 No Content
+205 Reset Content
+206 Partial Content
+207 Multi-Status
+208 Already Reported
+226 IM Used
+300 Multiple Choices
+301 Moved Permanently
+302 Found
+303 See Other
+304 Not Modified
+305 Use Proxy
+307 Temporary Redirect
+308 Permanent Redirect
+400 Bad Request
+401 Unauthorized
+402 Payment Required
+403 Forbidden
+404 Not Found
+405 Method Not Allowed
+406 Not Acceptable
+407 Proxy Authentication Required
+408 Request Timeout
+409 Conflict
+410 Gone
+411 Length Required
+412 Precondition Failed
+413 Payload Too Large
+414 URI Too Long
+415 Unsupported Media Type
+416 Range Not Satisfiable
+417 Expectation Failed
+418 I'm a teapot
+421 Misdirected Request
+422 Unprocessable Entity
+423 Locked
+424 Failed Dependency
+425 Too Early
+426 Upgrade Required
+428 Precondition Required
+429 Too Many Requests
+431 Request Header Fields Too Large
+451 Unavailable For Legal Reasons
+500 Internal Server Error
+501 Not Implemented
+502 Bad Gateway
+503 Service Unavailable
+504 Gateway Timeout
+505 HTTP Version Not Supported
+506 Variant Also Negotiates
+507 Insufficient Storage
+508 Loop Detected
+510 Not Extended
+511 Network Authentication Required
+EOF
+}
+
+# Main logic
+main() {
+    need gum
+
+    # Parse arguments
+    if [[ $# -eq 0 ]]; then
+        # Interactive mode
+        local selection
+        selection=$(get_all_codes | gum filter --placeholder "Search HTTP status codes...")
+
+        if [[ -n $selection ]]; then
+            local code
+            code=$(echo "$selection" | awk '{print $1}')
+            display_status "$code"
+        fi
+    elif [[ $1 == "-h" || $1 == "--help" ]]; then
+        usage
+    else
+        # Direct lookup
+        local code=$1
+
+        # Validate that it's a number
+        if ! [[ $code =~ ^[0-9]+$ ]]; then
+            die "Invalid status code: $code (must be a number)"
+        fi
+
+        display_status "$code"
+    fi
+}
+
+main "$@"
