@@ -34,7 +34,7 @@ if test -f $fzf_git_file
     source $fzf_git_file
 else if type -q git
     if not test -d $fzf_git_dir
-        echo "Installing fzf-git ..."
+        echo "🌐 Installing fzf-git ..."
         git clone git@github.com:junegunn/fzf-git.sh.git $fzf_git_dir
     end
 
@@ -85,7 +85,7 @@ if status is-interactive; and not set -q __fisher_sync_running
         echo "🚫 Skipping fisher bootstrap: fzf is not available on PATH" >&2
     else
         if not test -f $fisher_file
-            echo "Installing fisher ..."
+            echo "🌐 Installing fisher ..."
             curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish --create-dirs -o $fisher_file
         end
 
@@ -127,15 +127,51 @@ if functions -q fzf_configure_bindings
     bind \cr _fzf_search_history
     bind -M insert \cr _fzf_search_history
 
-    # Ctrl+P → fuzzy process picker (kills selected PID)
+    # Ctrl+P → fuzzy process picker
+    bind \cP _fzf_search_processes
+    bind -M insert \cP _fzf_search_processes
+
+    # Ctrl+Alt+P → fuzzy process picker (kills selected PID)
     function fzf_kill_process
-        set pid (_fzf_search_processes)
-        if test -n "$pid"
-            echo "Killing process $pid"
-            kill -9 $pid
+        # Select one or more processes and kill their PIDs directly.
+        set -l selected (
+            command ps -A -opid,user,command | \
+            awk 'NR == 1 || $0 !~ /^[[:space:]]*[0-9]+[[:space:]]+[^[:space:]]+[[:space:]]+\[.*\]$/' | \
+            _fzf_wrapper --multi \
+                        --prompt="Kill process> " \
+                        --ansi \
+                        --header-lines=1 \
+                        --preview="command ps -o pid,ppid=PARENT,user,%cpu,rss=RSS_IN_KB,start=START_TIME,command -p {1} || echo 'Cannot preview {1} because it exited.'" \
+                        --preview-window="bottom:4:wrap" \
+                        $fzf_processes_opts
+        )
+
+        if test $status -eq 0
+            set -l pids
+            for process in $selected
+                set --append pids (string split --no-empty --field=1 -- " " $process)
+            end
+
+            if test (count $pids) -gt 0
+                echo "Killing process(es): "(string join ' ' $pids)
+                if type -q murder
+                    for pid in $pids
+                        murder -y $pid
+                    end
+                else
+                    kill -9 $pids
+                end
+            end
         end
+
+        commandline --function repaint
     end
-    bind \cP fzf_kill_process
+    bind \e\cP fzf_kill_process
+    bind -M insert \e\cP fzf_kill_process
+
+    # Ctrl+Alt+V → search variables
+    bind \e\cV "$_fzf_search_vars_command"
+    bind -M insert \e\cV "$_fzf_search_vars_command"
 end
 
 # Remove Alt-PgUp/Down noise
@@ -157,11 +193,19 @@ end
 
 # Daily maintenance operations
 function purgehist
+    if not type -q tsp
+        echo "🚫 Skipping purgehist: tsp is not available on PATH" >&2
+        return 1
+    end
     tsp rmhist -s '^(sgpt|aichat|git commit)' > /dev/null
     tsp rmhist -s '^(ls|cd\s\.\.)$' > /dev/null
 end
 
 function update_pi
+  if not type -q tsp
+      echo "🚫 Skipping update_pi: tsp is not available on PATH" >&2
+      return 1
+  end
   if type -q nvm
       #tsp fish -c "nvm use latest && npm install -g @mariozechner/pi-coding-agent" > /dev/null
       # Let's keep JS stuff 7 days old since they can't keep their supplychain secure
@@ -206,7 +250,7 @@ function check_and_run_daily
     
     # Run the function and update timestamp
     if test "$should_run" = "true"
-        echo "Running daily tasks in background at "(date)
+        echo "🛠️ Running daily tasks in background at "(date)
         purgehist
         update_pi
         echo $current_time > $timestamp_file
