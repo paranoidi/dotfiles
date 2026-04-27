@@ -5,6 +5,9 @@ end
 # Remove greeting message
 set -g fish_greeting
 
+# Adjust fish-colored-man
+set -g man_standout -b 222226 ffff00
+
 # Fix locales
 set -Ux LANG en_US.UTF-8
 set -Ux LC_ALL en_US.UTF-8
@@ -20,6 +23,28 @@ set -x EZA_THEME ~/.config/eza/theme.yml
 # Source local.fish if it exists
 if test -f (dirname (status -f))/local.fish
     source (dirname (status -f))/local.fish
+end
+
+# Fzf git integration
+# Note that fzf-marks keybind is set in conf.d/00-fzf-marks-keybind.fish to 
+# ensure it takes precedence over fzf.fish's default bindings
+set -l fzf_git_dir ~/.fzf-git
+set -l fzf_git_file $fzf_git_dir/fzf-git.fish
+if test -f $fzf_git_file
+    source $fzf_git_file
+else if type -q git
+    if not test -d $fzf_git_dir
+        echo "Installing fzf-git ..."
+        git clone git@github.com:junegunn/fzf-git.sh.git $fzf_git_dir
+    end
+
+    if test -f $fzf_git_file
+        source $fzf_git_file
+    else
+        echo "🚫 fzf-git not found after clone attempt: $fzf_git_file" >&2
+    end
+else
+    echo "🚫 Skipping fzf-git setup: git is not available on PATH" >&2
 end
 
 set -q XDG_CONFIG_HOME; or set -gx XDG_CONFIG_HOME ~/.config
@@ -113,9 +138,17 @@ if functions -q fzf_configure_bindings
     bind \cP fzf_kill_process
 end
 
-# Remove Alt-PgUp/Down crap
+# Remove Alt-PgUp/Down noise
 bind \e\[5\;3\~ ''
 bind \e\[6\;3\~ ''
+
+# Remove Ctrl-Up/Down noise
+bind \e\[1\;5A ''
+bind \e\[1\;5B ''
+
+# Remove Ctrl-PgUp/Down noise
+bind \e\[5\;5\~ ''
+bind \e\[6\;5\~ ''
 
 # Disable history when cursor agent is running
 if set -q CURSOR_AGENT
