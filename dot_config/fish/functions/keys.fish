@@ -28,7 +28,7 @@ function keys
   echo "── FZF (PatrickF1) -- mostly unbinded? ────────────────────────────────"
   echo "Search Directory          |  Ctrl-Alt+F       (F for file)"
   echo ""
-  echo "── Tmux (Ctrl-a unless otherwise specified) ───────────────────────────"
+  echo "── Tmux (Ctrl-a unless otherwise specified, tt for session switch) ───"
   echo "Split window horizontally |  \" / h            (h for horizontal)"
   echo "Split window vertically   |  % / v            (v for vertical)"
   echo "Maximize current panel    |  z                (z for zoom)"
