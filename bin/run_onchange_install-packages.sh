@@ -161,14 +161,14 @@ install_apt_packages() {
             echo "⚠️ Packages that failed to install: ${failed_packages[*]}" >&2
         fi
     else
-        echo "✅ All required packages are already installed"
+        echo "✅ All packages are already installed"
     fi
 }
 
 ensure_fd_symlink() {
     # Without --force: satisfied if `fd` is on PATH. With --force: still try fdfind→fd symlink when applicable.
     if command -v fd >/dev/null 2>&1 && [[ "${INSTALL_FORCE:-0}" != 1 ]]; then
-        echo "✅ fd command is available"
+        echo "✅ fd"
     elif command -v fdfind >/dev/null 2>&1; then
         if [ -x /usr/bin/fdfind ]; then
             if [ -e /usr/local/bin/fd ]; then
@@ -208,7 +208,7 @@ install_fzf() {
 
 install_starship() {
     if ! _want_install_cmd starship; then
-        echo "✅ Starship is available"
+        echo "✅ Starship"
         return 0
     fi
     echo "🌐 Installing starship..."
@@ -229,7 +229,7 @@ install_starship() {
 
 install_eza() {
     if ! _want_install_cmd eza; then
-        echo "✅ Eza is available"
+        echo "✅ Eza"
         return 0
     fi
     echo "🔧 Adding eza repository ..."
@@ -243,7 +243,7 @@ install_eza() {
 
 install_tv() {
     if ! _want_install_cmd tv; then
-        echo "✅ tv is available"
+        echo "✅ tv"
         return 0
     fi
     if [[ "$IS_RASPI" == 1 ]]; then
@@ -316,7 +316,7 @@ install_firacode_nerd_font_if_gui() {
         return 0
     fi
     if [[ "${INSTALL_FORCE:-0}" != 1 ]] && compgen -G "$HOME/.fonts/FiraCodeNerdFont*" > /dev/null; then
-        echo "✅ FiraCodeNerdFont found"
+        echo "✅ FiraCodeNerdFont"
         return 0
     fi
     echo "🌐 Installing FiraCodeNerdFont..."
@@ -333,7 +333,7 @@ install_firacode_nerd_font_if_gui() {
 
 install_zellij() {
     if ! _want_install_cmd zellij; then
-        echo "✅ zellij is available"
+        echo "✅ zellij"
         return 0
     fi
     local INSTALL_DIR="${INSTALL_DIR:-"$HOME/.local/bin"}"
