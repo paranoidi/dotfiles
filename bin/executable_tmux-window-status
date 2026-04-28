@@ -18,6 +18,7 @@ command_icon() {
     case "$1" in
         fish)                   printf '🐟' ;;
         python3|python)         printf '🐍' ;;
+        git)                    printf '🔀' ;;
         find|ag|rg)             printf '🔍' ;;
         sleep)                  printf '🕓' ;;
         docker)                 printf '📦' ;;
