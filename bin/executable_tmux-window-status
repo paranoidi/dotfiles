@@ -17,6 +17,7 @@ normalize_cmd() {
 command_icon() {
     case "$1" in
         fish)                   printf '🐟' ;;
+        bash)                   printf '💩' ;;
         python3|python)         printf '🐍' ;;
         git)                    printf '🔀' ;;
         find|ag|rg)             printf '🔍' ;;
@@ -26,7 +27,7 @@ command_icon() {
         cp|rsync|dd)            printf '💾' ;;
         ssh|scp)                printf '📡' ;;
         curl|wget|gh)           printf '🌐' ;;
-        eza)                    printf '🗂️' ;;
+        eza|mc)                 printf '🗂️' ;;
         vi)                     printf '✏️' ;;
         bat|less)               printf '📃' ;;
         man)                    printf '📖' ;;
