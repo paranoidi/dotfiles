@@ -64,7 +64,7 @@ if swapon --show | grep -q '/dev/zram0'; then
     ZRAM_USED=$(swapon --show --noheadings --bytes | awk '/\/dev\/zram0/ {printf "%.0f", $4/1024/1024}')
     echo "✅ zram0 is active: ${ZRAM_SIZE} MB swap in RAM, ${ZRAM_USED} MB used"
 else
-    echo "⚠️ zram0 is NOT active as swap"
+    echo "⚠️  zram0 is NOT active as swap"
 fi
 
 # Show any other swap devices for context

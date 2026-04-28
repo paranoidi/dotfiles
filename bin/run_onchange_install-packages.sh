@@ -124,7 +124,7 @@ install_apt_packages() {
     fi
 
     if [[ "$IS_RASPI" == 1 ]]; then
-        echo "⚠️ Detected Raspberry Pi OS, excluding fish, gh, and git-delta"
+        echo "⚠️  Detected Raspberry Pi OS, excluding fish, gh, and git-delta"
         packages=($(printf '%s\n' "${packages[@]}" | grep -v -E '^(fish|gh|git-delta)$'))
     fi
 
@@ -141,7 +141,7 @@ install_apt_packages() {
         local failed_packages=()
         for package in "${packages_to_install[@]}"; do
             if ! _apt_pkg_is_available "$package"; then
-                echo "  ⚠️ Skipping $package (not found in apt cache)" >&2
+                echo "  ⚠️  Skipping $package (not found in apt cache)" >&2
                 unavailable_packages+=("$package")
                 continue
             fi
@@ -155,10 +155,10 @@ install_apt_packages() {
         done
         # Redundant with per-package messages
         # if [ ${#unavailable_packages[@]} -gt 0 ]; then
-        #     echo "⚠️ Packages not available in apt cache: ${unavailable_packages[*]}" >&2
+        #     echo "⚠️  Packages not available in apt cache: ${unavailable_packages[*]}" >&2
         # fi
         if [ ${#failed_packages[@]} -gt 0 ]; then
-            echo "⚠️ Packages that failed to install: ${failed_packages[*]}" >&2
+            echo "⚠️  Packages that failed to install: ${failed_packages[*]}" >&2
         fi
     else
         echo "✅ All packages are already installed"
@@ -179,13 +179,13 @@ ensure_fd_symlink() {
                 echo "✅ fd symlink created"
             fi
         else
-            echo "⚠️ fdfind binary not found at /usr/bin/fdfind, cannot create fd link" >&2
+            echo "⚠️  fdfind binary not found at /usr/bin/fdfind, cannot create fd link" >&2
         fi
     else
         if command -v fd >/dev/null 2>&1; then
             echo "✅ fd command is available"
         else
-            echo "⚠️ Neither fd nor fdfind is available" >&2
+            echo "⚠️  Neither fd nor fdfind is available" >&2
         fi
     fi
 }
@@ -247,7 +247,7 @@ install_tv() {
         return 0
     fi
     if [[ "$IS_RASPI" == 1 ]]; then
-        echo "⚠️ tv is not available on Raspberry Pi OS -- or the install script is broken" >&2
+        echo "⚠️  tv is not available on Raspberry Pi OS -- or the install script is broken" >&2
         return 1
     fi
     echo "🌐 Installing tv..."
@@ -392,7 +392,7 @@ install_zellij() {
     if [[ -n "$ver" ]]; then
       echo "✅ Installed ${ver}"
     else
-      echo "⚠️ Installed zellij in ${INSTALL_DIR}. Unable to determine version."
+      echo "⚠️  Installed zellij in ${INSTALL_DIR}. Unable to determine version."
     fi
 }
 

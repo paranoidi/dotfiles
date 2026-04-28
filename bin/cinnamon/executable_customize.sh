@@ -26,7 +26,7 @@ disable_grouped_window_list_super_num() {
     GROUPED_IDS=$(echo "$ENABLED_APPLETS" | grep -oP 'grouped-window-list(@[^:]+)?' | sort -u)
 
     if [ -z "$GROUPED_IDS" ]; then
-        echo "⚠️ No Grouped Window List applets found in enabled-applets." >&2
+        echo "⚠️  No Grouped Window List applets found in enabled-applets." >&2
         return 1
     fi
 
