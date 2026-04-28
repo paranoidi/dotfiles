@@ -19,13 +19,14 @@ case "$cmd" in batcat) cmd=bat ;; vim|nvim) cmd=vi ;; esac
 case "$cmd" in
     fish)                   icon="🐟" ;;
     python3|python)         icon="🐍" ;;
-    find)                   icon="🔍" ;;
+    find|ag|rg)             icon="🔍" ;;
     sleep)                  icon="🕓" ;;
     docker)                 icon="📦" ;;
     sudo)                   icon="💥" ;;
     cp|rsync|dd)            icon="💾" ;;
     ssh|scp)                icon="📡" ;;
-    curl|wget)              icon="🌐" ;;
+    curl|wget|gh)           icon="🌐" ;;
+    eza)                    icon="🗂️" ;;
     nvim|vi)                icon="✏️"; use_title=1 ;;
     bat|less)               icon="📃"; use_title=1 ;;
     man)                    icon="📖"; use_title=1 ;;
@@ -38,8 +39,25 @@ if [[ -n "$use_title" ]]; then
     info="${info% - ${original_cmd^^}}"  # strip trailing " - CMD" suffix (e.g. nvim → " - NVIM", vim → " - VIM")
     info="${info% [~\/]*}"       # strip trailing path-like word
 else
-    info="${path##*/}"
-    info="${info/$USER/\~}"
+    display="${path/$HOME/\~}"
+    if [[ "$display" != */* ]]; then
+        # path is $HOME itself or a single-component path like /tmp
+        info="$display"
+    else
+        base="${display##*/}"
+        parent_path="${display%/*}"
+        parent="${parent_path##*/}"
+        if [[ -z "$parent" ]]; then
+            candidate="/$base"         # e.g. /tmp
+        else
+            candidate="$parent/$base"  # e.g. ~/bin or projects/myapp
+        fi
+        if [[ ${#candidate} -lt 20 ]]; then
+            info="$candidate"
+        else
+            info="$base"
+        fi
+    fi
 fi
 
 printf '%s %s' "$icon" "$info"

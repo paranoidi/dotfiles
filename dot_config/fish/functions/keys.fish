@@ -37,6 +37,7 @@ function keys
   echo "Send to all panes off     |  E                (E for echo)"
   echo "Kill session              |  K                (K for kill)"
   echo "Chat with LLM             |  i                (i for intelligence)"
+  echo "List windows              |  w                (w for windows)"
   echo "Next window               |  n / Alt-PgDown   (n for next)"
   echo "Previous window           |  p / Alt-PgUp     (p for previous)"
   echo "Clear terminal and buffer |  l                (l is standard in shell)"
