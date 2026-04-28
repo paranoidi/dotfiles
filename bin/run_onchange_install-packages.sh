@@ -192,7 +192,7 @@ ensure_fd_symlink() {
 
 install_fzf() {
     if ! _want_install_cmd fzf; then
-        echo "✅ Fzf is available"
+        echo "✅ Fzf"
         return 0
     fi
     echo "🌐 Installing fzf from github"

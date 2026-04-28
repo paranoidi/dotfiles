@@ -57,7 +57,7 @@ function cz
         chezmoi update
         chezmoi apply
 
-        echo "✅ Update complete"
+        echo "🏆 Update complete"
         return 0
 
     # ------------------------------------------------------------
@@ -142,7 +142,7 @@ function cz
         chezmoi git -- add -A
         chezmoi git -- commit -m "$msg"
 
-        echo "✅ Recorded"
+        echo "🏆 Recorded"
         return 0
 
     # ------------------------------------------------------------
@@ -164,7 +164,7 @@ function cz
         cz add
         cz record "Full sync dotfiles"
 
-        echo "✅ Full sync complete"
+        echo "🏆 Full sync complete"
         return 0
 
     # ------------------------------------------------------------
