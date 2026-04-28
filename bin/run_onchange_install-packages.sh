@@ -1,6 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+
+# Core packages installed on all systems.
+APT_PACKAGES=(
+    curl wget git mc task-spooler tmux git-delta
+    fish fd-find bat neovim gh jq unzip fastfetch neofetch
+)
+
+# Additional packages installed only on systems with a GUI (X11 / Wayland).
+APT_GUI_PACKAGES=(
+    phinger-cursor-theme fonts-ubuntu-classic xclip colorized-logs
+)
+
+# =============================================================================
+
 # Filter noisy apt CLI output (stderr is merged where shown).
 _apt_out_filter() {
     grep -v -E 'already the newest version|upgraded,|newly installed|to remove|not upgraded|WARNING: apt does not have a stable CLI interface|^Hit:|^Get:|^Ign:|Reading package lists|Building dependency tree|Reading state information|^Fetched |list --upgradable.*see them' | awk 'NF'
@@ -10,6 +27,11 @@ _apt_out_filter() {
 _run_apt() {
     "$@" 2>&1 | _apt_out_filter
     return "${PIPESTATUS[0]}"
+}
+
+# True iff the named Debian package exists in the current apt cache.
+_apt_pkg_is_available() {
+    apt-cache show "$1" >/dev/null 2>&1
 }
 
 # True iff the named Debian package is installed (correct for multiarch :arch names).
@@ -65,9 +87,10 @@ _require_sudo() {
 
 install_apt_packages() {
     local packages_to_install=()
-    local packages=(curl wget git mc task-spooler tmux git-delta fish fd-find bat neovim gh jq unzip)
-    local gui_packages=(phinger-cursor-theme fonts-ubuntu-classic)
+    local packages=("${APT_PACKAGES[@]}")
+    local gui_packages=("${APT_GUI_PACKAGES[@]}")
 
+    # Only attempt to install GUI-related packages if a graphical session is detected (X11 or Wayland).
     if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]] || \
        pgrep -x "Xorg" >/dev/null || \
        pgrep -x "wayland" >/dev/null; then
@@ -76,7 +99,7 @@ install_apt_packages() {
 
     # Raspberry Pi OS
     if [ -f /etc/issue ] && grep -q "Debian GNU/Linux 11" /etc/issue; then
-        echo "⚠️  Detected Debian GNU/Linux 11, excluding fish, gh, and git-delta"
+        echo "⚠️ Detected Debian GNU/Linux 11, excluding fish, gh, and git-delta"
         packages=($(printf '%s\n' "${packages[@]}" | grep -v -E '^(fish|gh|git-delta)$'))
     fi
 
@@ -89,18 +112,28 @@ install_apt_packages() {
 
     if [ ${#packages_to_install[@]} -gt 0 ]; then
         echo "📦 Installing packages: ${packages_to_install[*]}"
+        local unavailable_packages=()
         local failed_packages=()
         for package in "${packages_to_install[@]}"; do
+            if ! _apt_pkg_is_available "$package"; then
+                echo "  ⚠️ Skipping $package (not found in apt cache)" >&2
+                unavailable_packages+=("$package")
+                continue
+            fi
             echo "  ⏳ Installing $package..."
             if _run_apt sudo apt install -y -qq "$package"; then
                 echo "  ✅ Successfully installed $package"
             else
-                echo "  ❌ Failed to install $package (package may not be available)" >&2
+                echo "  ❌ Failed to install $package" >&2
                 failed_packages+=("$package")
             fi
         done
+        # Redundant with per-package messages
+        # if [ ${#unavailable_packages[@]} -gt 0 ]; then
+        #     echo "⚠️ Packages not available in apt cache: ${unavailable_packages[*]}" >&2
+        # fi
         if [ ${#failed_packages[@]} -gt 0 ]; then
-            echo "⚠️  Warning: The following packages could not be installed: ${failed_packages[*]}" >&2
+            echo "⚠️ Packages that failed to install: ${failed_packages[*]}" >&2
         fi
     else
         echo "✅ All required packages are already installed"
@@ -121,13 +154,13 @@ ensure_fd_symlink() {
                 echo "✅ fd symlink created"
             fi
         else
-            echo "⚠️  fdfind binary not found at /usr/bin/fdfind, cannot create fd link" >&2
+            echo "⚠️ fdfind binary not found at /usr/bin/fdfind, cannot create fd link" >&2
         fi
     else
         if command -v fd >/dev/null 2>&1; then
             echo "✅ fd command is available"
         else
-            echo "⚠️  Neither fd nor fdfind is available" >&2
+            echo "⚠️ Neither fd nor fdfind is available" >&2
         fi
     fi
 }
@@ -257,30 +290,6 @@ install_tv() {
     echo "✅ tv ${ver} installed"
 }
 
-install_xclip_if_gui() {
-    if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
-        return 0
-    fi
-    if _want_install_apt_pkg xclip; then
-        echo "📦 Installing xclip for clipboard integration..."
-        _run_apt sudo apt install -y -qq xclip
-    else
-        echo "✅ xclip is already installed"
-    fi
-}
-
-install_colorized_logs_if_gui() {
-    if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
-        return 0
-    fi
-    if _want_install_apt_pkg colorized-logs; then
-        echo "📦 Installing colorized-logs for toclip function..."
-        _run_apt sudo apt install -y -qq colorized-logs
-    else
-        echo "✅ colorized-logs is already installed"
-    fi
-}
-
 install_firacode_nerd_font_if_gui() {
     if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
         return 0
@@ -318,11 +327,11 @@ install_zellij() {
         zellij_linux_triple="aarch64-unknown-linux-musl"
     elif [ "$_m" = "armv7l" ] || [ "$_m" = "armv6l" ] || [ "$_m" = "armv5tel" ]; then
         echo "❌ zellij does not publish 32-bit ARM Linux binaries (machine: ${_m})." >&2
-        echo "ℹ️  Use 64-bit Raspberry Pi OS, or build from source: https://github.com/${REPO}" >&2
+        echo "ℹ️ Use 64-bit Raspberry Pi OS, or build from source: https://github.com/${REPO}" >&2
         exit 1
     else
         echo "❌ Unsupported machine type '${_m}' for prebuilt zellij Linux musl." >&2
-        echo "ℹ️  Supported: x86_64, aarch64 — https://github.com/${REPO}/releases" >&2
+        echo "ℹ️ Supported: x86_64, aarch64 — https://github.com/${REPO}/releases" >&2
         exit 1
     fi
     local PATTERN="zellij-no-web-${zellij_linux_triple}.tar.gz"
@@ -370,7 +379,7 @@ change_shell_to_fish() {
     local fish_path
     fish_path=$(command -v fish 2>/dev/null || true)
     if [ -z "$fish_path" ]; then
-        echo "❌ Error: fish is not installed, cannot change shell" >&2
+        echo "❌ Fish is not installed, cannot change shell" >&2
         return 0
     fi
     if [ "$SHELL" = "$fish_path" ] && [[ "${INSTALL_FORCE:-0}" != 1 ]]; then
@@ -379,7 +388,7 @@ change_shell_to_fish() {
     local fish_version
     fish_version=$(fish --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1)
     if [ -z "$fish_version" ]; then
-        echo "⚠️  Warning: Could not determine fish version, skipping shell change" >&2
+        echo "❌ Could not determine fish version, skipping shell change" >&2
         return 0
     fi
     local major minor
@@ -392,7 +401,7 @@ change_shell_to_fish() {
         echo "🏆 Changing shell to fish (version $fish_version)..."
         chsh -s "$fish_path"
     else
-        echo "⚠️  Warning: fish version $fish_version is less than required 3.7, skipping shell change" >&2
+        echo "❌ Fish version $fish_version is less than required 3.7, skipping shell change" >&2
     fi
 }
 
@@ -426,10 +435,8 @@ main() {
     install_starship
     install_eza
     install_tv
-    install_xclip_if_gui
-    install_colorized_logs_if_gui
     install_firacode_nerd_font_if_gui
-    install_zellij
+    # install_zellij -- probably sticking with tmux
     change_shell_to_fish
 }
 
