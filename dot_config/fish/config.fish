@@ -25,6 +25,17 @@ if test -f (dirname (status -f))/local.fish
     source (dirname (status -f))/local.fish
 end
 
+# Run for SSH login shells
+if status --is-login; and set -q SSH_CONNECTION
+    if type -q fastfetch
+        fastfetch
+    else if type -q neofetch
+        neofetch
+    else
+        uptime
+    end
+end
+
 # Fzf git integration
 # Note that fzf-marks keybind is set in conf.d/00-fzf-marks-keybind.fish to 
 # ensure it takes precedence over fzf.fish's default bindings
@@ -186,11 +197,6 @@ bind \e\[1\;5B ''
 bind \e\[5\;5\~ ''
 bind \e\[6\;5\~ ''
 
-# Disable history when cursor agent is running
-if set -q CURSOR_AGENT
-    set -g fish_history ""
-end
-
 # Daily maintenance operations
 function purgehist
     if not type -q tsp
@@ -262,8 +268,13 @@ if status is-interactive
     check_and_run_daily
 end
 
+# Disable history when agent is running
+if set -q CURSOR_AGENT && not set -q CLAUDECODE
+    set -g fish_history ""
+end
+
 # Use starship prompt if installed
-if not set -q CURSOR_AGENT && type -q starship
+if type -q starship && not set -q CURSOR_AGENT && not set -q CLAUDECODE
     starship init fish | source
 end
 
