@@ -19,6 +19,8 @@ command_icon() {
         fish)                   printf '🐟' ;;
         bash)                   printf '💩' ;;
         python3|python)         printf '🐍' ;;
+        ruby)                   printf '💎' ;;
+        perl)                   printf '🐪' ;;
         git)                    printf '🔀' ;;
         find|ag|rg)             printf '🔍' ;;
         sleep)                  printf '🕓' ;;
@@ -29,6 +31,7 @@ command_icon() {
         curl|wget|gh)           printf '🌐' ;;
         eza|mc)                 printf '🗂️' ;;
         vi)                     printf '✏️' ;;
+        pi)                     printf '𝞹';;
         bat|less)               printf '📃' ;;
         man)                    printf '📖' ;;
         *)                      printf '%s' "$1" ;;
