@@ -46,7 +46,7 @@ if test -f $fzf_git_file
 else if type -q git
     if not test -d $fzf_git_dir
         echo "🌐 Installing fzf-git ..."
-        git clone git@github.com:junegunn/fzf-git.sh.git $fzf_git_dir
+        git clone "https://github.com/junegunn/fzf-git.sh.git" $fzf_git_dir
     end
 
     if test -f $fzf_git_file
