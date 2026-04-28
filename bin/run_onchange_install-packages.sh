@@ -19,6 +19,31 @@ APT_GUI_PACKAGES=(
 
 # =============================================================================
 
+# Raspberry Pi / Raspberry Pi OS
+_is_raspberry_pi() {
+    if [[ -r /proc/device-tree/model ]] && tr -d '\0' </proc/device-tree/model | grep -qi 'Raspberry Pi'; then
+        return 0
+    fi
+    if [[ -r /etc/rpi-issue ]]; then
+        return 0
+    fi
+    if [[ -r /etc/os-release ]] && grep -qiE '^(ID=raspbian|ID_LIKE=.*raspbian|PRETTY_NAME=.*Raspberry Pi OS)' /etc/os-release; then
+        return 0
+    fi
+    if uname -a | grep -qiE 'raspberrypi|raspi|bcm27|v[0-9]+\+'; then
+        return 0
+    fi
+    # Fallback for older Raspberry Pi OS installs that report plain Debian.
+    [[ -r /etc/issue ]] && grep -q "Debian GNU/Linux 11" /etc/issue
+}
+
+IS_RASPI=0
+if _is_raspberry_pi; then
+    IS_RASPI=1
+fi
+readonly IS_RASPI
+
+
 # Filter noisy apt CLI output (stderr is merged where shown).
 _apt_out_filter() {
     grep -v -E 'already the newest version|upgraded,|newly installed|to remove|not upgraded|WARNING: apt does not have a stable CLI interface|^Hit:|^Get:|^Ign:|Reading package lists|Building dependency tree|Reading state information|^Fetched |list --upgradable.*see them' | awk 'NF'
@@ -98,9 +123,8 @@ install_apt_packages() {
         packages+=("${gui_packages[@]}")
     fi
 
-    # Raspberry Pi OS
-    if [ -f /etc/issue ] && grep -q "Debian GNU/Linux 11" /etc/issue; then
-        echo "⚠️ Detected Debian GNU/Linux 11, excluding fish, gh, and git-delta"
+    if [[ "$IS_RASPI" == 1 ]]; then
+        echo "⚠️ Detected Raspberry Pi OS, excluding fish, gh, and git-delta"
         packages=($(printf '%s\n' "${packages[@]}" | grep -v -E '^(fish|gh|git-delta)$'))
     fi
 
@@ -222,6 +246,10 @@ install_tv() {
         echo "✅ tv is available"
         return 0
     fi
+    if [[ "$IS_RASPI" == 1 ]]; then
+        echo "⚠️ tv is not available on Raspberry Pi OS -- or the install script is broken" >&2
+        return 1
+    fi
     echo "🌐 Installing tv..."
     # Upstream install.sh is chatty (banner, [INFO], curl -LO progress, verbose dpkg).
     # Debian/Ubuntu: download .deb with silent curl and install via apt-get -qq.
@@ -261,18 +289,10 @@ install_tv() {
         return 0
     fi
 
-    if [[ "$os" == Darwin ]] && command -v brew >/dev/null 2>&1; then
-        brew install -q television
-        echo "✅ tv installed (Homebrew)"
-        return 0
-    fi
-
     install_dir=/usr/local/bin
     case "${os}-${m}" in
         Linux-x86_64|Linux-amd64) binary_target=x86_64-unknown-linux-musl ;;
         Linux-aarch64|Linux-arm64) binary_target=aarch64-unknown-linux-gnu ;;
-        Darwin-x86_64) binary_target=x86_64-apple-darwin ;;
-        Darwin-arm64) binary_target=aarch64-apple-darwin ;;
         *)
             echo "❌ Unsupported OS/arch for bundled tv installer: ${os} (${m})" >&2
             return 1
