@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# tmux-window-status cmd title path
+# Outputs: "<icon> <info>" for one window status entry.
+# Arguments passed from .tmux.conf:
+#   $1  pane_current_command
+#   $2  pane_title
+#   $3  pane_current_path
+
+cmd="$1"
+title="$2"
+path="$3"
+
+# --- icon ---
+case "$cmd" in
+    fish)                   icon="🐟" ;;
+    sleep)                  icon="🕓" ;;
+    docker)                 icon="📦" ;;
+    nvim|vim|vi)            icon="✏️" ;;
+    sudo)                   icon="💥" ;;
+    bat|batcat|less)        icon="📃" ;;
+    cp|rsync|dd)            icon="💾" ;;
+    ssh|scp)                icon="📡" ;;
+    curl|wget)              icon="🌐" ;;
+    man)                    icon="📖" ;;
+    *)                      icon="$cmd" ;;
+esac
+
+# --- info ---
+case "$cmd" in
+    nvim|vim|vi|less|man|batcat|bat)
+        # pane_title is set by the app, e.g.:
+        #   nvim:   "filename - NVIM"
+        #   vim:    "filename - VIM"
+        #   less:   "filename (END)" or just "filename"
+        #   vi:     "vi filename ~/path"
+        #   batcat: "filename"
+        info="$title"
+        # Strip known editor suffixes
+        info="${info% - NVIM}"
+        info="${info% - VIM}"
+        # Strip trailing path-like word (starts with ~ or /)
+        info="${info% [~\/]*}"
+        # Strip leading command word if the title starts with a known command name.
+        # Uses sed so that "bat" is stripped even when $cmd is "batcat", etc.
+        info=$(printf '%s' "$info" | sed -E 's/^(nvim|vim|vi|less|man|bat|batcat) //')
+        # Strip less's "(END)" or "(line N)" suffix
+        info="${info% (END)}"
+        info="${info% (line *}"
+        ;;
+    *)
+        # Show directory basename; replace $USER with ~
+        info="${path##*/}"
+        info="${info/$USER/\~}"
+        ;;
+esac
+
+printf '%s %s' "$icon" "$info"
