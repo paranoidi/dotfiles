@@ -10,34 +10,124 @@ cmd="$1"
 title="$2"
 path="$3"
 
+normalize_cmd() {
+    case "$1" in batcat) printf 'bat' ;; vim|nvim) printf 'vi' ;; *) printf '%s' "$1" ;; esac
+}
+
+command_icon() {
+    case "$1" in
+        fish)                   printf '🐟' ;;
+        python3|python)         printf '🐍' ;;
+        find|ag|rg)             printf '🔍' ;;
+        sleep)                  printf '🕓' ;;
+        docker)                 printf '📦' ;;
+        sudo)                   printf '💥' ;;
+        cp|rsync|dd)            printf '💾' ;;
+        ssh|scp)                printf '📡' ;;
+        curl|wget|gh)           printf '🌐' ;;
+        eza)                    printf '🗂️' ;;
+        vi)                     printf '✏️' ;;
+        bat|less)               printf '📃' ;;
+        man)                    printf '📖' ;;
+        *)                      printf '%s' "$1" ;;
+    esac
+}
+
+command_title_mode() {
+    case "$1" in
+        ssh|scp)                printf 'remote' ;;
+        vi|bat|less|man)        printf 'short' ;;
+    esac
+}
+
+# Note: value is shortened by default fish_title to 10 characters
+host_label() {
+    case "$1" in
+        hime)                   printf '🎬' ;;
+        raspberryp)             printf '🤖' ;;
+        prox)                   printf '🛠️' ;;
+        orochi)                 printf '🚗' ;;
+        *)                      printf '%s' "${1:0:4}" ;;
+    esac
+}
+
+short_title() {
+    local raw_title="$1"
+    local normalized_cmd="$2"
+    local original_title_cmd="$3"
+    local short_info="$raw_title"
+
+    short_info="${short_info#$normalized_cmd }"
+    short_info="${short_info#$original_title_cmd }"
+    short_info="${short_info% - ${original_title_cmd^^}}"  # strip trailing " - CMD" suffix (e.g. nvim → " - NVIM", vim → " - VIM")
+    short_info="${short_info% [~\/]*}"       # strip trailing path-like word
+    printf '%s' "$short_info"
+}
+
 # normalize aliases so icon + title-strip logic can use one canonical name
 # original_cmd is kept for suffix stripping (e.g. "- VIM", "- NVIM")
 original_cmd="$cmd"
-case "$cmd" in batcat) cmd=bat ;; vim|nvim) cmd=vi ;; esac
+cmd="$(normalize_cmd "$cmd")"
 
-# --- icon + use_title flag ---
-case "$cmd" in
-    fish)                   icon="🐟" ;;
-    python3|python)         icon="🐍" ;;
-    find|ag|rg)             icon="🔍" ;;
-    sleep)                  icon="🕓" ;;
-    docker)                 icon="📦" ;;
-    sudo)                   icon="💥" ;;
-    cp|rsync|dd)            icon="💾" ;;
-    ssh|scp)                icon="📡" ;;
-    curl|wget|gh)           icon="🌐" ;;
-    eza)                    icon="🗂️" ;;
-    nvim|vi)                icon="✏️"; use_title=1 ;;
-    bat|less)               icon="📃"; use_title=1 ;;
-    man)                    icon="📖"; use_title=1 ;;
-    *)                      icon="$cmd" ;;
-esac
+# --- icon + title mode ---
+icon="$(command_icon "$cmd")"
+title_mode="$(command_title_mode "$cmd")"
+
+if [[ "$title" =~ ^\[([^]]+)\][[:space:]]*(.*)$ ]]; then
+    remote="$(host_label "${BASH_REMATCH[1]}")"
+    remote_title="${BASH_REMATCH[2]}"
+
+    remote_original_cmd="${remote_title%% *}"
+    remote_cmd="$(normalize_cmd "$remote_original_cmd")"
+    remote_icon="$(command_icon "$remote_cmd")"
+    remote_title_mode="$(command_title_mode "$remote_cmd")"
+
+    if [[ "$cmd" == ssh || "$cmd" == scp ]] && [[ "$remote_icon" == "$remote_cmd" && -z "$remote_title_mode" ]]; then
+        if [[ -n "$remote_title" ]]; then
+            printf '📡 %s %s' "$remote" "$remote_title"
+        else
+            printf '📡 %s' "$remote"
+        fi
+        exit 0
+    fi
+
+    if [[ "$remote_title_mode" == short ]]; then
+        remote_info="$(short_title "$remote_title" "$remote_cmd" "$remote_original_cmd")"
+    else
+        remote_info="${remote_title#"$remote_original_cmd"}"
+        remote_info="${remote_info#"${remote_info%%[![:space:]]*}"}"
+    fi
+
+    if [[ -n "$remote_info" ]]; then
+        printf '📡 %s %s %s' "$remote" "$remote_icon" "$remote_info"
+    else
+        printf '📡 %s %s' "$remote" "$remote_icon"
+    fi
+    exit 0
+fi
 
 # --- info ---
-if [[ -n "$use_title" ]]; then
-    info="${title#$cmd }"        # strip leading "cmd " if present
-    info="${info% - ${original_cmd^^}}"  # strip trailing " - CMD" suffix (e.g. nvim → " - NVIM", vim → " - VIM")
-    info="${info% [~\/]*}"       # strip trailing path-like word
+if [[ "$title_mode" == remote ]]; then
+    remote_title="${title#$cmd }"        # strip leading "cmd " if present
+    remote_title="${remote_title% - ${original_cmd^^}}"
+    if [[ "$remote_title" =~ ^\[([^]]+)\][[:space:]]*(.*)$ ]]; then
+        remote="$(host_label "${BASH_REMATCH[1]}")"
+        remote_path="${BASH_REMATCH[2]}"
+    else
+        remote="${remote_title%% *}"
+        remote_path="${remote_title#"$remote"}"
+        remote_path="${remote_path#"${remote_path%%[![:space:]]*}"}"
+        remote="${remote#\[}"
+        remote="${remote%\]}"
+        remote="$(host_label "$remote")"
+    fi
+    if [[ -n "$remote_path" ]]; then
+        info="$remote $remote_path"
+    else
+        info="$remote"
+    fi
+elif [[ "$title_mode" == short ]]; then
+    info="$(short_title "$title" "$cmd" "$original_cmd")"
 else
     display="${path/$HOME/\~}"
     if [[ "$display" != */* ]]; then

@@ -4,10 +4,12 @@ set -euo pipefail
 # tt - Tmux session switcher with fzf preview
 # Shows active sessions, preview displays windows and panes
 
-# Bail if no tmux server running
+# Start new session if no tmux server running
 if ! tmux list-sessions &>/dev/null; then
-    echo "No tmux sessions running" >&2
-    exit 1
+    echo "No tmux sessions found, starting new session" >&2
+    sleep 1s
+    tmux new-session -A -s main
+    exit 0
 fi
 
 SESSION=$(
