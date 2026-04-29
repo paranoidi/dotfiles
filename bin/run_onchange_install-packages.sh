@@ -9,7 +9,7 @@ set -euo pipefail
 APT_PACKAGES=(
     curl wget git mc task-spooler tmux git-delta
     fish fd-find bat neovim gh jq unzip fastfetch neofetch
-    ripgrep silversearcher-ag
+    ripgrep silversearcher-ag sysstat
 )
 
 # Additional packages installed only on systems with a GUI (X11 / Wayland).
