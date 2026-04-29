@@ -3,23 +3,68 @@ set -euo pipefail
 
 # tt - Tmux session switcher with fzf preview
 # Shows active sessions, preview displays windows and panes
+# Ctrl-N: create a new session (uses "main", else next free name from FLOWERS)
+
+# Short, easy-to-remember Japanese flower names
+FLOWERS=(sakura ume ayame nanohana kiku fuji ran sumire tsubaki asagao)
+
+pick_free_name() {
+    if ! tmux has-session -t=main 2>/dev/null; then
+        echo main
+        return
+    fi
+    for name in "${FLOWERS[@]}"; do
+        if ! tmux has-session -t="$name" 2>/dev/null; then
+            echo "$name"
+            return
+        fi
+    done
+    echo "s$(date +%s)"
+}
+
+new_session() {
+    local name
+    name=$(pick_free_name)
+    if [[ -n "${TMUX:-}" ]]; then
+        tmux new-session -d -s "$name"
+        tmux switch-client -t "$name"
+    else
+        tmux new-session -A -s "$name"
+    fi
+}
+
+# Handle internal --new invocation from fzf keybinding
+if [[ "${1:-}" == "--new" ]]; then
+    new_session
+    exit 0
+fi
 
 # Start new session if no tmux server running
 if ! tmux list-sessions &>/dev/null; then
     echo "No tmux sessions found, starting new session" >&2
     sleep 1s
-    tmux new-session -A -s main
+    name=$(pick_free_name)
+    tmux new-session -A -s "$name"
     exit 0
 fi
 
+NEW_MARKER="✨"
 SESSION=$(
-    tmux list-sessions -F "#{session_name}: #{session_windows} windows (#{session_attached} attached)" 2>/dev/null |
+    {
+        tmux list-sessions -F "#{session_name}: #{session_windows} windows (#{session_attached} attached)" 2>/dev/null
+        echo "$NEW_MARKER: new session"
+    } |
     fzf --height=60% \
         --reverse \
         --border \
-        --header="Select tmux session" \
+        --header="Select tmux session  (Ctrl-N: new)" \
+        --bind="ctrl-n:last+accept" \
         --preview='bash -c "
             session=\$(echo {} | cut -d: -f1)
+            if [[ \"\$session\" == \"'$NEW_MARKER'\" ]]; then
+                echo \"Create a new tmux session\"
+                exit 0
+            fi
             echo \"━━━ \$session ━━━\"
             tmux list-windows -t \"\$session\" -F \"  #{window_index}: #{window_name}#{?window_active, ●,}\" 2>/dev/null
             echo \"\"
@@ -31,6 +76,11 @@ SESSION=$(
 )
 
 [[ -z "$SESSION" ]] && exit 0
+
+if [[ "$SESSION" == "$NEW_MARKER" ]]; then
+    SESSION=$(pick_free_name)
+    tmux new-session -d -s "$SESSION"
+fi
 
 if [[ -n "${TMUX:-}" ]]; then
     tmux switch-client -t "$SESSION"
