@@ -1,0 +1,6 @@
+[aliases]
+dup = "docker compose up"
+
+[shell]
+
+[logging]

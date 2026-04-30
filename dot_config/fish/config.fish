@@ -279,8 +279,8 @@ if type -q starship && not set -q CURSOR_AGENT && not set -q CLAUDECODE
 end
 
 # Enable amoxide
-if test -f $HOME/.cargo/bin/am
-    source $HOME/.cargo/env.fish
+if type -q am
+    am init fish | source
 end
 
 # Enable direnv
