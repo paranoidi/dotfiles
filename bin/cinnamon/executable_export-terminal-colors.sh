@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${OUTPUT_FILE:=gnome-terminal-colors.json}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OUTPUT_FILE="${1:-${OUTPUT_FILE:-"${SCRIPT_DIR}/resources/gnome-terminal-colors.json"}}"
 
 # Tools check
 command -v gsettings >/dev/null || { echo "gsettings not found"; exit 1; }
