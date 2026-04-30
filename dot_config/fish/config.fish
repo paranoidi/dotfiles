@@ -221,6 +221,14 @@ function update_pi
   end
 end
 
+function update_chezmoi
+  if not type -q tsp
+      echo "🚫 Skipping update_chezmoi: tsp is not available on PATH" >&2
+      return 1
+  end
+  tsp fish -c "chezmoi upgrade"
+end
+
 function check_and_run_daily
     # Store timestamp in ~/.cache/fish/
     set -l cache_dir ~/.cache/fish
@@ -259,6 +267,7 @@ function check_and_run_daily
         echo "🛠️ Running daily tasks in background at "(date)
         purgehist
         update_pi
+        update_chezmoi
         echo $current_time > $timestamp_file
     end
 end
