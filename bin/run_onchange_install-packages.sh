@@ -103,12 +103,16 @@ _github_latest_release_asset_url() {
         | head -n1
 }
 
-# Prompt for sudo once up front so password is not requested mid-run.
+# Acquire sudo credentials once; subsequent calls are no-ops.
+_SUDO_ACQUIRED=0
 _require_sudo() {
+    [[ "$_SUDO_ACQUIRED" == 1 ]] && return 0
     if [[ "$(id -u)" -eq 0 ]]; then
+        _SUDO_ACQUIRED=1
         return 0
     fi
     sudo -v
+    _SUDO_ACQUIRED=1
 }
 
 install_apt_packages() {
@@ -136,6 +140,7 @@ install_apt_packages() {
     done
 
     if [ ${#packages_to_install[@]} -gt 0 ]; then
+        _require_sudo
         echo "📦 Installing packages: ${packages_to_install[*]}"
         local unavailable_packages=()
         local failed_packages=()
@@ -175,6 +180,7 @@ ensure_fd_symlink() {
                 echo "ℹ️  /usr/local/bin/fd already exists"
             else
                 echo "🔗 Creating fd symlink for fdfind..."
+                _require_sudo
                 sudo ln -s /usr/bin/fdfind /usr/local/bin/fd
                 echo "✅ fd symlink created"
             fi
@@ -232,6 +238,7 @@ install_eza() {
         echo "✅ Eza"
         return 0
     fi
+    _require_sudo
     echo "🔧 Adding eza repository ..."
     sudo mkdir -p /etc/apt/keyrings
     wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | sudo gpg --batch --yes --dearmor -o /etc/apt/keyrings/gierens.gpg
@@ -246,6 +253,7 @@ install_tv() {
         echo "✅ tv"
         return 0
     fi
+    _require_sudo
     if [[ "$IS_RASPI" == 1 ]]; then
         echo "⚠️  tv is not available on Raspberry Pi OS -- or the install script is broken" >&2
         return 1
@@ -461,8 +469,6 @@ main() {
         esac
     done
     export INSTALL_FORCE
-
-    _require_sudo
 
     install_apt_packages
     ensure_fd_symlink
