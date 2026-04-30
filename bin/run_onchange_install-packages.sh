@@ -311,6 +311,19 @@ install_tv() {
     echo "✅ tv ${ver} installed"
 }
 
+install_amoxide() {
+    if [[ "${INSTALL_FORCE:-0}" != 1 ]] && [[ -x "$HOME/.cargo/bin/am" ]]; then
+        echo "✅ amoxide"
+        return 0
+    fi
+    echo "🌐 Installing amoxide..."
+    if ! curl -fsSL https://github.com/sassman/amoxide-rs/releases/latest/download/amoxide-installer.sh | sh; then
+        echo "❌ amoxide installation failed" >&2
+        return 1
+    fi
+    echo "✅ amoxide installed"
+}
+
 install_firacode_nerd_font_if_gui() {
     if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
         return 0
@@ -427,6 +440,7 @@ change_shell_to_fish() {
 }
 
 main() {
+    echo "🛠️ Install packages ..."
     INSTALL_FORCE=0
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -456,6 +470,7 @@ main() {
     install_starship
     install_eza
     install_tv
+    install_amoxide
     install_firacode_nerd_font_if_gui
     # install_zellij -- probably sticking with tmux
     change_shell_to_fish

@@ -167,7 +167,7 @@ if functions -q fzf_configure_bindings
                 echo "Killing process(es): "(string join ' ' $pids)
                 if type -q murder
                     for pid in $pids
-                        murder -y $pid
+                        murder -y $pid &
                     end
                 else
                     kill -9 $pids
@@ -276,6 +276,11 @@ end
 # Use starship prompt if installed
 if type -q starship && not set -q CURSOR_AGENT && not set -q CLAUDECODE
     starship init fish | source
+end
+
+# Enable amoxide
+if test -f $HOME/.cargo/bin/am
+    source $HOME/.cargo/env.fish
 end
 
 # Enable direnv
