@@ -10,5 +10,6 @@ set -Ux VISUAL nvim
 set -Ux GIT_EDITOR nvim
 
 set -x EZA_THEME ~/.config/eza/theme.yml
+set -x BAT_THEME ansi
 
 set -q XDG_CONFIG_HOME; or set -gx XDG_CONFIG_HOME ~/.config
