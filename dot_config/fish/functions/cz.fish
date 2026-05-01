@@ -10,7 +10,7 @@ function __cz_import_changes
     set files (__cz_modified_files)
 
     if test (count $files) -eq 0
-        echo "⚠️  No modified files"
+        echo "⚠️ No modified files"
         return 1
     end
 
@@ -72,7 +72,7 @@ function cz
         set deleted (__cz_deleted_files)
         if test (count $deleted) -gt 0
             echo ""
-            echo "⚠️  deleted files detected:"
+            echo "⚠️ Deleted files detected:"
             for f in $deleted
                 echo "  - $f"
             end
@@ -121,7 +121,7 @@ function cz
 
         if test (count $deleted) -gt 0
             echo ""
-            echo "⚠️  Deleted files detected (not auto-handled in record):"
+            echo "⚠️ Deleted files detected (not auto-handled in record):"
             for f in $deleted
                 echo "  - $f"
             end
