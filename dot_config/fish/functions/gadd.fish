@@ -1,4 +1,4 @@
-function gadd --description "Multiselect files from git status with fzf and git add them"
+function gadd --description "🔀 git add files with fzf"
     if not git rev-parse --git-dir >/dev/null 2>&1
         echo "gadd: Not in a git repository." >&2
         return 1
