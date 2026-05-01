@@ -18,13 +18,28 @@ function fzf_kill_process
         end
 
         if test (count $pids) -gt 0
-            echo "Killing process(es): "(string join ' ' $pids)
-            if type -q murder
-                for pid in $pids
-                    murder -y $pid
+            set -l valid_pids
+            for pid in $pids
+                if string match --quiet --regex '^[0-9]+$' -- $pid
+                    set --append valid_pids $pid
                 end
+            end
+
+            if test (count $valid_pids) -eq 0
+                echo "🚫 No valid process ids selected." >&2
+            else if set -q TMUX; and type -q tmux
+                set -l kill_command "set -l pids $valid_pids; echo 'Killing process(es):' \$pids; if type -q murder; for pid in \$pids; murder -y \$pid; end; else; kill -9 \$pids; end; sleep 1s; tmux kill-pane -t \$TMUX_PANE 2>/dev/null"
+                set -l tmux_command "fish -lc "(string escape -- $kill_command)
+                command tmux split-window -d -h -l 40 -- $tmux_command
             else
-                kill -9 $pids
+                echo "Killing process(es): "(string join ' ' $valid_pids)
+                if type -q murder
+                    for pid in $valid_pids
+                        murder -y $pid &
+                    end
+                else
+                    kill -9 $valid_pids
+                end
             end
         end
     end
