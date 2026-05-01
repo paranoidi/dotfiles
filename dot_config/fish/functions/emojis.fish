@@ -6,4 +6,7 @@ function emojis --description 'print terminal-friendly emojis for copy and paste
     printf '%s\n' ''
     printf '%s\n' 'Two-character symbols in this terminal (separated by two spaces):'
     printf '%s\n' 'ℹ️ ⚠️ ✏️ 🗑️ 🛠️ '
+    printf '%s\n' ''
+    printf '%s\n' 'Iconic emojis:'
+    printf '%s\n' ' 󰉍 󰲂 󱍙 󰉏    '
 end

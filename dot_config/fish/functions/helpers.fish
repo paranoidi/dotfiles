@@ -58,6 +58,5 @@ function helpers --description 'List user-created and available helper commands'
 
     echo ""
     echo "── Manual helpers ────────────────────────────────────────────────────"
-    printf '%-25s %s\n' toclip 'send arguments directly to xclip clipboard selection'
     printf '%-25s %s\n' mark 'save the current directory as an fzf mark'
 end
