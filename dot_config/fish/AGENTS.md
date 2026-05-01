@@ -12,6 +12,7 @@ This directory contains Fish shell configuration managed with chezmoi.
 ## Visual guidelines
 
 - Error messages should be prefixed with emoji 🚫
+- Usage instructions coming from missing arguments are not considered as error and should not have error emoji
 
 ## Verification
 

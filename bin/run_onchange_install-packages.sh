@@ -17,6 +17,11 @@ APT_GUI_PACKAGES=(
     phinger-cursor-theme fonts-ubuntu-classic xclip colorized-logs
 )
 
+# Go packages installed with `go install`.
+GO_PACKAGES=(
+    github.com/charmbracelet/gum@latest
+)
+
 # =============================================================================
 
 # Raspberry Pi / Raspberry Pi OS
@@ -49,9 +54,9 @@ _apt_out_filter() {
     grep -v -E 'already the newest version|upgraded,|newly installed|to remove|not upgraded|WARNING: apt does not have a stable CLI interface|^Hit:|^Get:|^Ign:|Reading package lists|Building dependency tree|Reading state information|^Fetched |list --upgradable.*see them' | awk 'NF'
 }
 
-# Run an apt (or sudo apt) command; filtered output; return status of the first pipeline command (apt/sudo).
+# Run a sudo apt command; filtered output; return status of apt.
 _run_apt() {
-    "$@" 2>&1 | _apt_out_filter
+    sudo apt "$@" 2>&1 | _apt_out_filter
     return "${PIPESTATUS[0]}"
 }
 
@@ -138,7 +143,7 @@ install_apt_packages() {
                 continue
             fi
             echo "  ⏳ Installing $package..."
-            if _run_apt sudo apt install -y -qq "$package"; then
+            if _run_apt install -y -qq "$package"; then
                 echo "  ✅ Successfully installed $package"
             else
                 echo "  ❌ Failed to install $package" >&2
@@ -229,8 +234,8 @@ install_eza() {
     wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | sudo gpg --batch --yes --dearmor -o /etc/apt/keyrings/gierens.gpg
     echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de stable main" | sudo tee /etc/apt/sources.list.d/gierens.list >/dev/null
     sudo chmod 644 /etc/apt/keyrings/gierens.gpg /etc/apt/sources.list.d/gierens.list
-    _run_apt sudo apt update -qq
-    _run_apt sudo apt install -y -qq eza
+    _run_apt update -qq
+    _run_apt install -y -qq eza
 }
 
 install_tv() {
@@ -316,6 +321,94 @@ install_amoxide() {
     echo "✅ amoxide installed"
 }
 
+install_go() {
+    if ! _want_install_cmd go; then
+        echo "✅ Go"
+        return 0
+    fi
+
+    echo "🌐 Installing Go..."
+    local os arch filename url install_dir install_parent tmpdir
+    os=linux
+    case "$(uname -m)" in
+        x86_64|amd64) arch=amd64 ;;
+        aarch64|arm64) arch=arm64 ;;
+        armv7l|armv6l|armv5tel) arch=armv6l ;;
+        i386|i686) arch=386 ;;
+        *)
+            echo "❌ Unsupported machine type for Go: $(uname -m)" >&2
+            return 1
+            ;;
+    esac
+
+    filename=$(curl -fsSL 'https://go.dev/dl/?mode=json' \
+        | jq -r --arg suffix ".${os}-${arch}.tar.gz" \
+            '.[0].files[] | select(.filename | endswith($suffix)) | .filename' \
+        | head -n1)
+    if [[ -z "$filename" ]]; then
+        echo "❌ Failed to resolve latest Go release for ${os}-${arch}" >&2
+        return 1
+    fi
+
+    url="https://go.dev/dl/${filename}"
+    install_dir="${GO_INSTALL_DIR:-"$HOME/.local/go"}"
+    install_parent="$(dirname "$install_dir")"
+    tmpdir=$(mktemp -d)
+    curl -fsSL -o "${tmpdir}/${filename}" "$url" || { rm -rf "$tmpdir"; return 1; }
+
+    tar -C "$tmpdir" -xzf "${tmpdir}/${filename}"
+    rm -rf "$install_dir"
+    mkdir -p "$install_parent" "$HOME/.local/bin"
+    mv "${tmpdir}/go" "$install_dir"
+    rm -rf "$tmpdir"
+
+    ln -sf "${install_dir}/bin/go" "$HOME/.local/bin/go"
+    ln -sf "${install_dir}/bin/gofmt" "$HOME/.local/bin/gofmt"
+    echo "🐹 $("${install_dir}/bin/go" version)"
+}
+
+install_go_packages() {
+    local go_cmd
+    go_cmd=$(command -v go 2>/dev/null || true)
+    if [[ -z "$go_cmd" ]]; then
+        local install_dir="${GO_INSTALL_DIR:-"$HOME/.local/go"}"
+        if [[ -x "${install_dir}/bin/go" ]]; then
+            go_cmd="${install_dir}/bin/go"
+        elif [[ -x "$HOME/.local/bin/go" ]]; then
+            go_cmd="$HOME/.local/bin/go"
+        else
+            echo "❌ Go is not available, cannot install Go packages" >&2
+            return 1
+        fi
+    fi
+
+    local gobin="${GO_BIN_DIR:-"$HOME/.local/bin"}"
+    mkdir -p "$gobin"
+
+    local package command_name failed_packages=()
+    for package in "${GO_PACKAGES[@]}"; do
+        command_name="${package%@*}"
+        command_name="${command_name##*/}"
+        if [[ "${INSTALL_FORCE:-0}" != 1 ]] && { command -v "$command_name" >/dev/null 2>&1 || [[ -x "$gobin/$command_name" ]]; }; then
+            echo "✅ ${command_name}"
+            continue
+        fi
+
+        echo "🐹 Installing ${package}..."
+        if GOBIN="$gobin" "$go_cmd" install "$package"; then
+            echo "✅ Installed ${command_name}"
+        else
+            echo "❌ Failed to install ${package}" >&2
+            failed_packages+=("$package")
+        fi
+    done
+
+    if [ ${#failed_packages[@]} -gt 0 ]; then
+        echo "⚠️  Go packages that failed to install: ${failed_packages[*]}" >&2
+        return 1
+    fi
+}
+
 install_firacode_nerd_font_if_gui() {
     if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
         return 0
@@ -333,7 +426,27 @@ install_firacode_nerd_font_if_gui() {
         rm -f FiraCode.zip
     )
     fc-cache -f
-    echo "✅ FiraCodeNerdFont installed successfully!"
+    echo "✅ FiraCodeNerdFont installed"
+}
+
+install_jetbrains_mono_font_if_gui() {
+    if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+        return 0
+    fi
+    if [[ "${INSTALL_FORCE:-0}" != 1 ]] && [[ -f "$HOME/.fonts/JetBrainsMono[wght].ttf" ]]; then
+        echo "✅ JetBrainsMono"
+        return 0
+    fi
+    echo "🌐 Installing JetBrainsMono..."
+    mkdir -p ~/.fonts
+    (
+        cd /tmp
+        wget -q --show-progress -O JetBrainsMono.zip https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip
+        unzip -oq -j JetBrainsMono.zip 'fonts/variable/JetBrainsMono\[wght\].ttf' -d ~/.fonts/
+        rm -f JetBrainsMono.zip
+    )
+    fc-cache -f
+    echo "✅ JetBrainsMono installed"
 }
 
 install_zellij() {
@@ -461,7 +574,10 @@ main() {
     install_eza
     install_tv
     install_amoxide
+    install_go
+    install_go_packages
     install_firacode_nerd_font_if_gui
+    install_jetbrains_mono_font_if_gui
     # install_zellij -- probably sticking with tmux
     change_shell_to_fish
 }

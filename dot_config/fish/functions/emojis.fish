@@ -1,4 +1,4 @@
-function emojis --description 'print terminal-friendly emojis for copy and paste'
+function emojis --description '🎉 Print terminal-friendly emojis for copy and paste'
     printf '%s\n' 'Terminal-friendly emojis for copy and paste'
     printf '%s\n' ''
     printf '%s\n' 'Single-cell in this terminal:'
