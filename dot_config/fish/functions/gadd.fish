@@ -83,7 +83,6 @@ function gadd --description "🔀 git add files with fzf"
             --preview-window=right:60%:wrap \
             --bind="ctrl-p:toggle-preview" \
             --bind="ctrl-r:execute-silent($restore_cmd)+reload($reload_cmd)" \
-            --nth=2.. \
             --with-nth=2..
     )
     or return

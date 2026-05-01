@@ -1,4 +1,4 @@
-function helpers --description 'List user-created and configured helper commands'
+function helpers --description 'List user-created and available helper commands'
     set -l config_home ~/.config
     if set -q XDG_CONFIG_HOME
         set config_home $XDG_CONFIG_HOME
@@ -50,7 +50,7 @@ function helpers --description 'List user-created and configured helper commands
         set -a generated_helpers (printf '%s\t%s' $helper_name $description)
     end
 
-    echo "── Generated helpers ─────────────────────────────────────────────────"
+    echo "── Detected helpers ───────────────────────────────────────────────────"
     for helper in (printf '%s\n' $generated_helpers | sort)
         set -l parts (string split --max 1 (printf '\t') -- $helper)
         printf '%-25s %s\n' $parts[1] $parts[2]
