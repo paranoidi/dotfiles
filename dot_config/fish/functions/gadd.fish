@@ -1,12 +1,13 @@
 function gadd --description "🔀 git add files with fzf"
     if not git rev-parse --git-dir >/dev/null 2>&1
-        echo "gadd: Not in a git repository." >&2
+        echo "🚫 Not in a git repository." >&2
         return 1
     end
 
-    set -l status_output (git -c color.status=always status --porcelain=v1)
+    set -l repo_root (git rev-parse --show-toplevel)
+    set -l status_output (git -C $repo_root -c color.status=always status --porcelain=v1)
     if test -z "$status_output"
-        echo "gadd: Working tree clean." >&2
+        echo "🚫 Working tree clean." >&2
         return 0
     end
 
@@ -14,7 +15,9 @@ function gadd --description "🔀 git add files with fzf"
     # and full file content for untracked. Run via sh because fzf's default
     # shell on this system is fish.
     set -l preview_script '
-        line=$1
+        repo_root=$1
+        line=$2
+        cd "$repo_root" || exit 1
         x=$(printf "%s" "$line" | cut -c1)
         y=$(printf "%s" "$line" | cut -c2)
         path=$(printf "%s" "$line" | cut -c4-)
@@ -42,11 +45,14 @@ function gadd --description "🔀 git add files with fzf"
             fi
         fi
     '
-    set -l preview_cmd "sh -c $(string escape -- $preview_script) _ {}"
+    set -l preview_cmd "sh -c $(string escape -- $preview_script) _ $(string escape -- $repo_root) {}"
 
     # Restore script: unstages staged changes and discards working-tree
     # modifications. For untracked files (??), removes them.
     set -l restore_script '
+        repo_root=$1
+        shift
+        cd "$repo_root" || exit 1
         for line in "$@"; do
             x=$(printf "%s" "$line" | cut -c1)
             y=$(printf "%s" "$line" | cut -c2)
@@ -67,8 +73,8 @@ function gadd --description "🔀 git add files with fzf"
             fi
         done
     '
-    set -l restore_cmd "sh -c $(string escape -- $restore_script) _ {+}"
-    set -l reload_cmd 'git -c color.status=always status --porcelain=v1'
+    set -l restore_cmd "sh -c $(string escape -- $restore_script) _ $(string escape -- $repo_root) {+}"
+    set -l reload_cmd "git -C $(string escape -- $repo_root) -c color.status=always status --porcelain=v1"
 
     set -l selected (
         printf "%s\n" $status_output |
@@ -103,6 +109,6 @@ function gadd --description "🔀 git add files with fzf"
         return 0
     end
 
-    git add -- $paths
-    and git status --short
+    git -C $repo_root add -- $paths
+    and git -C $repo_root status --short
 end
