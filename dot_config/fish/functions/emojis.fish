@@ -2,7 +2,7 @@ function emojis --description '🎉 Print terminal-friendly emojis for copy and 
     printf '%s\n' 'Terminal-friendly emojis for copy and paste'
     printf '%s\n' ''
     printf '%s\n' 'Single-cell in this terminal:'
-    printf '%s\n' '✅ 🏆 ✨ 🎉 ❌ 🚫 🔧 🚀 🔥 🔑 🔍 🕓 ⏳ 📦 💥 💾 📡 🌐 📥 🗂️ 📁 📋 📃 📖 📝 📜 📊 🏠 🤖 🧠 🎬 🚧 🎮 🍺 💻 🧱 🚪 📏 🦀 🐳 🐹 🐪 🐟 🐍 🐞 💎 🔀 ☠️ 💩 🔗 🧪 🔐 🧰 🧹 🧊 🧵 🧭'
+    printf '%s\n' '✅ 🏆 ✨ 🎉 ❌ 🚫 🔧 🚀 🔥 🔑 🔍 🕓 ⏳ 📦 💥 💾 📡 🌐 📥 🗂️ 📁 📋 📃 📖 📝 📜 📊 🏠 🤖 🧠 🎬 🚧 🎮 ⏭️ 🍺 💻 🧱 🚪 📏 🦀 🐳 🐹 🐪 🐟 🐍 🐞 💎 🔀 ☠️ 💩 🔗 🧪 🔐 🧰 🧹 🧊 🧵 🧭'
     printf '%s\n' ''
     printf '%s\n' 'Two-character symbols in terminal (generally separate by two spaces, expect some inconsistencies):'
     printf '%s\n' 'ℹ️ ⚠️ ✏️ 🗑️ 🛠️ ☢️ '
