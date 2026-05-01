@@ -1,4 +1,4 @@
-function toclip --wraps='xclip -selection clipboard' --description 'copy stdin to clipboard with control codes stripped'
+function toclip --wraps='xclip -selection clipboard' --description '📋 Copy stdin to clipboard without ANSI'
     ansi2txt | xclip -selection clipboard
 end
 
