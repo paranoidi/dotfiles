@@ -1,0 +1,26 @@
+{{ if eq .chezmoi.os "linux" -}}
+#!/usr/bin/env bash
+set -euo pipefail
+
+# gnome-terminal.dconf hash: {{ include "bin/cinnamon/resources/gnome-terminal.dconf" | sha256sum }}
+
+SETTINGS_FILE={{ joinPath .chezmoi.sourceDir "bin/cinnamon/resources/gnome-terminal.dconf" | quote }}
+
+if ! command -v dconf > /dev/null; then
+  echo "ℹ️  dconf not found; skipping GNOME Terminal settings import"
+  exit 0
+fi
+
+if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+  echo "ℹ️  No GUI session found; skipping GNOME Terminal settings import"
+  exit 0
+fi
+
+if [[ ! -s "$SETTINGS_FILE" ]]; then
+  echo "ℹ️  GNOME Terminal settings file missing or empty: $SETTINGS_FILE"
+  exit 0
+fi
+
+dconf load /org/gnome/terminal/legacy/ < "$SETTINGS_FILE"
+echo "🔧 Imported GNOME Terminal settings from chezmoi"
+{{ end -}}
