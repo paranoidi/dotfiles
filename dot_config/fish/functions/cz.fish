@@ -6,6 +6,10 @@ function __cz_deleted_files
     chezmoi status | awk '$1 ~ /^D/ {print $2}'
 end
 
+function __cz_is_template_source --argument-names source_path
+    string match -rq '(^|\.)tmpl($|\.)' -- "$source_path"
+end
+
 function __cz_import_changes
     set files (__cz_modified_files)
 
@@ -15,6 +19,17 @@ function __cz_import_changes
     end
 
     for f in $files
+        set source_path (chezmoi source-path "$HOME/$f" 2>/dev/null)
+        if test $status -ne 0
+            echo "🚫 $f (could not resolve chezmoi source)"
+            continue
+        end
+
+        if __cz_is_template_source "$source_path"
+            echo "⏭️ $f (template source, skipped)"
+            continue
+        end
+
         echo "💾 $f"
         chezmoi add "$HOME/$f"
     end
@@ -40,7 +55,7 @@ function cz
         echo ""
         echo "Commands:"
         echo "  cz update (u)  → Pull latest state + apply to \$HOME"
-        echo "  cz add (a)     → Add all local changes into chezmoi"
+        echo "  cz add (a)     → Add local changes into chezmoi, skipping templates"
         echo "  cz status (s)  → Show status diff"
         echo "  cz diff (d)    → Show detailed diff"
         echo "  cz record (r)  → Add all changes + git commit [message]"
