@@ -78,15 +78,15 @@ function cz
             end
 
             read -P "❓ Remove these from chezmoi source as well? [y/N] " confirm
-            if test "$confirm" = "y"
+            if string match -q -i y -- "$confirm"
                 for f in $deleted
                     echo "💀 $f"
-                    chezmoi forget "$f"
+                    chezmoi forget "$HOME/$f"
                 end
             end
         end
 
-        echo "✅ Add complete"
+        echo "🏆 Add complete"
         return 0
 
     # ------------------------------------------------------------
