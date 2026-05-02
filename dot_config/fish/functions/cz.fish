@@ -10,6 +10,19 @@ function __cz_is_template_source --argument-names source_path
     string match -rq '(^|\.)tmpl($|\.)' -- "$source_path"
 end
 
+function __cz_status_without_template_sources
+    chezmoi status | while read -l line
+        set target_path (string trim -- "$line" | string replace -r '^\S+\s+' '')
+        set source_path (chezmoi source-path "$HOME/$target_path" 2>/dev/null)
+
+        if test $status -eq 0; and __cz_is_template_source "$source_path"
+            continue
+        end
+
+        echo "$line"
+    end
+end
+
 function __cz_import_changes
     set files (__cz_modified_files)
 
@@ -89,7 +102,7 @@ function cz
             echo ""
             echo "⚠️ Deleted files detected:"
             for f in $deleted
-                echo "  - $f"
+                echo "   - $f"
             end
 
             read -P "❓ Remove these from chezmoi source as well? [y/N] " confirm
@@ -109,7 +122,7 @@ function cz
     # ------------------------------------------------------------
     case status s
         echo "🛠️ cz status"
-        chezmoi status
+        __cz_status_without_template_sources
         return 0
 
     # ------------------------------------------------------------
