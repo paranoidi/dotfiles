@@ -92,7 +92,7 @@ function cz
     # ADD (home → repo)
     # ------------------------------------------------------------
     case add a
-        echo "🛠️  cz add - Importing local changes into chezmoi"
+        echo "🏠 cz add - Importing local changes into chezmoi"
 
         __cz_import_changes
 
@@ -121,7 +121,7 @@ function cz
     # STATUS
     # ------------------------------------------------------------
     case status s
-        echo "🛠️  cz status"
+        echo "🏠 cz status"
         __cz_status_without_template_sources
         return 0
 
@@ -129,7 +129,7 @@ function cz
     # DIFF
     # ------------------------------------------------------------
     case diff d
-        echo "🛠️  cz diff"
+        echo "🏠 cz diff"
         # Reverse diff direction so local additions appear as '+' (green).
         chezmoi diff --reverse
         return 0
@@ -186,7 +186,7 @@ function cz
     # FULL (full pipeline)
     # ------------------------------------------------------------
     case full f
-        echo "🛠️  cz full"
+        echo "🏠 cz full"
 
         cz update
         cz add
