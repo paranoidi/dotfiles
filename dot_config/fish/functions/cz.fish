@@ -73,7 +73,7 @@ function cz
         echo "  cz diff (d)    → Show detailed diff"
         echo "  cz record (r)  → Add all changes + git commit [message]"
         echo "  cz push (p)    → Push commits to remote"
-        echo "  cz full (f)    → Full sync cycle"
+        echo "  cz full (f)    → Full sync cycle [message]"
         return 0
 
     # ------------------------------------------------------------
@@ -188,9 +188,14 @@ function cz
     case full f
         echo "🏠 cz full"
 
+        set msg (string join ' ' $argv[2..-1])
+        if test -z "$msg"
+            set msg "Full sync dotfiles"
+        end
+
         cz update
         cz add
-        cz record "Full sync dotfiles"
+        cz record "$msg"
 
         echo "🏆 Full sync complete"
         return 0
