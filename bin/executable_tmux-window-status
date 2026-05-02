@@ -51,6 +51,7 @@ host_label() {
     case "$1" in
         hime)                   printf '🎬' ;;
         raspberryp)             printf '🤖' ;;
+        mamoru)                 printf '👀' ;;
         prox)                   printf '🛠️' ;;
         orochi)                 printf '🚗' ;;
         *)                      printf '%s' "${1:0:4}" ;;
