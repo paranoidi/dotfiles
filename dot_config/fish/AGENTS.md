@@ -13,6 +13,8 @@ This directory contains Fish shell configuration managed with chezmoi.
 
 - Error messages should be prefixed with emoji 🚫
 - Usage instructions coming from missing arguments are not considered as error and should not have error emoji
+- When a command completes successfully it should print the message with emoji 🏆
+- Any helper function for git should have their description starting with emoji 🔀
 
 ## Verification
 
