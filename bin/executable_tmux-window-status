@@ -31,6 +31,7 @@ command_icon() {
         curl|wget|gh)           printf '🌐' ;;
         eza|mc)                 printf '🗂️' ;;
         vi)                     printf '✏️' ;;
+        rm)                     printf '☠️ ' ;;
         du)                     printf '📊' ;;
         pi|llm|aichat|copilot)  printf '🧠' ;;
         bat|less)               printf '📃' ;;
