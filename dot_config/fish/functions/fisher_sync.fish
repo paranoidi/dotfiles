@@ -21,7 +21,7 @@ function fisher_sync
 
     for plugin in (string match -rv '^\s*(#|$)' < $plugin_file)
         if not fisher list | grep -qx -- $plugin
-            fisher install $plugin
+            _spinner --fallback-prefix "🔌" "Installing fisher plugin $plugin ..." fisher install $plugin
         end
     end
 
