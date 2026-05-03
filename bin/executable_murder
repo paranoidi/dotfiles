@@ -1,6 +1,10 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.10"
+# dependencies = [
+#     "inquirerpy",
+#     "rich",
+# ]
 # ///
 """Escalating process kill: TERM → INT → HUP → KILL
 
@@ -19,15 +23,19 @@ import subprocess
 import sys
 import time
 
+from InquirerPy import inquirer
+from rich.console import Console
+
 SIGNALS = [
-    (signal.SIGTERM, 2),
-    (signal.SIGINT, 2),
-    (signal.SIGHUP, 2),
+    (signal.SIGTERM, 2.5),
+    (signal.SIGINT, 2.5),
+    (signal.SIGHUP, 2.5),
     (signal.SIGKILL, 0),
 ]
 
 MY_PID = os.getpid()
-AUTO_CONFIRM = False
+console = Console()
+err_console = Console(stderr=True)
 
 
 def is_running(pid: int) -> bool:
@@ -42,7 +50,8 @@ def get_command(pid: int) -> str:
     try:
         result = subprocess.run(
             ["ps", "-p", str(pid), "-o", "command="],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         return result.stdout.strip()
     except Exception:
@@ -50,97 +59,116 @@ def get_command(pid: int) -> str:
 
 
 def confirm(prompt: str) -> bool:
-    if AUTO_CONFIRM:
-        return True
-    try:
-        answer = input(f"{prompt} ").strip().lower()
-        return answer in ("y", "yes", "yas")
-    except (EOFError, KeyboardInterrupt):
-        print()
-        return False
+    return bool(inquirer.confirm(message=prompt, default=False).execute())
+
+
+def spin_sleep(title: str, seconds: float) -> None:
+    with console.status(title, spinner="dots"):
+        time.sleep(seconds)
 
 
 def murder_pid(pid: int) -> None:
     for sig, wait in SIGNALS:
         if not is_running(pid):
             break
-        print(f"  Sending {sig.name} to {pid}...")
+        console.print(f"→ Sending {sig.name} to {pid}...", style="magenta")
         try:
             os.kill(pid, sig)
         except OSError:
             break
-        if wait > 0:
-            time.sleep(0.5)
-            if is_running(pid):
-                time.sleep(wait)
+        if wait > 0 and is_running(pid):
+            spin_sleep(f"Waiting for {pid} to exit after {sig.name}...", wait)
 
     if is_running(pid):
-        print(f"  Warning: {pid} may still be running.", file=sys.stderr)
+        console.print(f"⚠ {pid} may still be running.", style="bold red")
     else:
-        print(f"  {pid} terminated.")
+        console.print(f"✓ {pid} terminated.", style="bold green")
+
+
+def select_pids(processes: list[tuple[int, str]], title: str) -> list[int]:
+    if not processes:
+        return []
+
+    choices = [
+        {"name": f"{pid}\t{cmd}", "value": pid}
+        for pid, cmd in processes
+    ]
+
+    console.print(title, style="bold yellow")
+    if len(choices) == 1:
+        pid, cmd = processes[0]
+        return [pid] if confirm(f"Murder {cmd} (pid {pid})?") else []
+
+    return list(inquirer.checkbox(
+        message="Select processes to murder",
+        choices=choices,
+        instruction="(space to select, enter to confirm)",
+    ).execute())
+
+
+def murder_selected(processes: list[tuple[int, str]], title: str) -> None:
+    pids = select_pids(processes, title)
+    if not pids:
+        return
+
+    console.print(f"⚠ About to terminate {len(pids)} process(es)", style="bold red")
+    if not confirm("Proceed?"):
+        return
+
+    for pid in pids:
+        murder_pid(pid)
+
+
+def unique_processes(pids: list[int]) -> list[tuple[int, str]]:
+    seen: set[int] = set()
+    processes: list[tuple[int, str]] = []
+    for pid in pids:
+        if pid == MY_PID or pid in seen:
+            continue
+        seen.add(pid)
+        processes.append((pid, get_command(pid)))
+    return processes
 
 
 def murder_by_pid(pid: int) -> None:
     if not is_running(pid):
-        print(f"No process with PID {pid}", file=sys.stderr)
+        err_console.print(f"No process with PID {pid}", style="red")
         return
-    cmd = get_command(pid)
-    if confirm(f"murder {cmd} (pid {pid})?"):
-        murder_pid(pid)
+    murder_selected([(pid, get_command(pid))], f"Process {pid}")
 
 
 def murder_by_port(port_arg: str) -> None:
-    while True:
-        result = subprocess.run(
-            ["lsof", "-i", port_arg],
-            capture_output=True, text=True,
-        )
-        if not result.stdout.strip():
-            print(f"No processes on port {port_arg}")
-            return
+    port = port_arg[1:]
+    result = subprocess.run(
+        ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"],
+        capture_output=True,
+        text=True,
+    )
+    if not result.stdout.strip():
+        console.print(f"No processes listening on port {port_arg}")
+        return
 
-        looped = False
-        for line in result.stdout.splitlines()[1:]:
-            parts = line.split(None, 2)
-            if len(parts) < 2:
-                continue
-            pid = int(parts[1])
-            if pid == MY_PID:
-                continue
-            cmd = get_command(pid)
-            if confirm(f"murder {cmd} (pid {pid})?"):
-                murder_pid(pid)
-                looped = True
-                break
+    pids: list[int] = []
+    for line in result.stdout.splitlines()[1:]:
+        parts = line.split(None, 2)
+        if len(parts) >= 2:
+            pids.append(int(parts[1]))
 
-        if not looped:
-            break
+    murder_selected(unique_processes(pids), f"Processes listening on {port_arg}")
 
 
 def murder_by_name(name: str) -> None:
-    while True:
-        result = subprocess.run(
-            ["pgrep", "-fi", name],
-            capture_output=True, text=True,
-        )
-        pids = [
-            int(p) for p in result.stdout.split()
-            if int(p) != MY_PID
-        ]
-        if not pids:
-            print(f"No processes matching '{name}'")
-            return
+    result = subprocess.run(
+        ["pgrep", "-fi", name],
+        capture_output=True,
+        text=True,
+    )
+    processes = unique_processes([int(p) for p in result.stdout.split()])
+    if not processes:
+        console.print(f"No processes matching '{name}'")
+        return
 
-        looped = False
-        for pid in pids:
-            cmd = get_command(pid)
-            if confirm(f"murder {cmd} (pid {pid})?"):
-                murder_pid(pid)
-                looped = True
-                break
-
-        if not looped:
-            break
+    murder_selected(processes, f"Processes matching '{name}'")
 
 
 def is_int(s: str) -> bool:
@@ -161,22 +189,14 @@ def murder(arg: str) -> None:
 
 
 def main() -> None:
-    global AUTO_CONFIRM
-
-    args = sys.argv[1:]
-    if "-y" in args:
-        AUTO_CONFIRM = True
-        args = [arg for arg in args if arg != "-y"]
-
-    if not args:
-        print("usage:", file=sys.stderr)
-        print("  murder -y 123  kill by pid without confirmation", file=sys.stderr)
-        print("  murder 123     kill by pid", file=sys.stderr)
-        print("  murder ruby    kill by process name", file=sys.stderr)
-        print("  murder :3000   kill by port", file=sys.stderr)
+    if len(sys.argv) < 2:
+        err_console.print("usage:", style="bold")
+        err_console.print("  murder 123     kill by pid")
+        err_console.print("  murder ruby    kill by process name")
+        err_console.print("  murder :3000   kill by port")
         sys.exit(1)
 
-    for arg in args:
+    for arg in sys.argv[1:]:
         murder(arg)
 
 

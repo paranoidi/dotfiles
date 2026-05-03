@@ -1,4 +1,4 @@
-function ex --argument fname -d "📦 Universal archive extractor"
+function ex --argument fname -d "🗂️ Universal archive extractor"
     if test -z "$fname"
         echo "Error: fname argument is required" >&2
         return 1

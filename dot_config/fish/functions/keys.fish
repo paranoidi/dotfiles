@@ -13,6 +13,15 @@ function keys
   echo "Search Variables          |  Ctrl-Alt-Shift-V (V for variable)"
   echo "Jump to mark              |  Ctrl-E           (E for explore)"
   echo ""
+  echo "── FZF search syntax ─────────────────────────────────────────────────"
+  echo "'wild                     |  exact-match"
+  echo "'wild'                    |  exact-boundary-match"
+  echo "^music                    |  prefix-exact-match"
+  echo '.mp3$                     |  suffix-exact-match'
+  echo "!fire                     |  inverse-exact-match"
+  echo "!^music                   |  inverse-prefix-exact-match"
+  echo '!.mp3$                    |  inverse-suffix-exact-match'
+  echo ""
   echo "── GIT (Ctrl-G) ──────────── Note: Ctrl is optional ───────────────────"
   echo "Files                     |  Ctrl-F           (F for files)"
   echo "Branches                  |  Ctrl-B           (B for branches)"
