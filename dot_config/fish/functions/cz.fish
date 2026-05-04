@@ -131,7 +131,8 @@ function cz
     case diff d
         echo "🏠 cz diff"
         # Reverse diff direction so local additions appear as '+' (green).
-        chezmoi diff --reverse
+        # Exclude run scripts (R entries) — they have no meaningful diff content.
+        chezmoi diff --reverse --exclude=scripts
         return 0
 
     # ------------------------------------------------------------

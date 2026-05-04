@@ -1,9 +1,12 @@
 function skills --description "🧠 Run skills with latest Node via nvm"
-    nvm use latest >/dev/null
-    set -l nvm_status $status
-    if test $nvm_status -ne 0
-        echo "❌ failed to activate latest Node with nvm" >&2
-        return $nvm_status
+    nvm use latest >/dev/null 2>&1
+    if test $status -ne 0
+        echo "⬇️  Node 'latest' not installed, running nvm install latest …" >&2
+        nvm install latest >/dev/null
+        if test $status -ne 0
+            echo "❌ failed to install latest Node with nvm" >&2
+            return 1
+        end
     end
 
     set -l npx_exec (command --search npx)

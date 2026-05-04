@@ -47,12 +47,37 @@ function gadd --description "🔀 git add files with fzf"
     '
     set -l preview_cmd "sh -c $(string escape -- $preview_script) _ $(string escape -- $repo_root) {}"
 
-    # Restore script: unstages staged changes and discards working-tree
-    # modifications. For untracked files (??), removes them.
+    # Restore script: shows confirmation dialog, then unstages staged changes and
+    # discards working-tree modifications. For untracked files (??), removes them.
     set -l restore_script '
         repo_root=$1
         shift
         cd "$repo_root" || exit 1
+        [ $# -eq 0 ] && exit 0
+
+        if command -v gum >/dev/null 2>&1; then
+            gum style --foreground 208 --bold "  Restore files?"
+            for line in "$@"; do
+                path=$(printf "%s" "$line" | cut -c4-)
+                case "$path" in *" -> "*) path=${path##* -> } ;; esac
+                path=${path#\"}; path=${path%\"}
+                echo "  • $path"
+            done
+            echo ""
+            gum confirm "Restore these files?" || exit 0
+        else
+            echo "Restore files:"
+            for line in "$@"; do
+                path=$(printf "%s" "$line" | cut -c4-)
+                case "$path" in *" -> "*) path=${path##* -> } ;; esac
+                path=${path#\"}; path=${path%\"}
+                echo "  • $path"
+            done
+            printf "Restore? [y/N] "
+            read -r answer
+            case "$answer" in [yY]*) ;; *) exit 0 ;; esac
+        fi
+
         for line in "$@"; do
             x=$(printf "%s" "$line" | cut -c1)
             y=$(printf "%s" "$line" | cut -c2)
@@ -88,7 +113,7 @@ function gadd --description "🔀 git add files with fzf"
             --preview=$preview_cmd \
             --preview-window=right:60%:wrap \
             --bind="ctrl-p:toggle-preview" \
-            --bind="ctrl-r:execute-silent($restore_cmd)+reload($reload_cmd)" \
+            --bind="ctrl-r:execute($restore_cmd)+reload($reload_cmd)" \
             --with-nth=2..
     )
     or return
