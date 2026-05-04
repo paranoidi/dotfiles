@@ -514,6 +514,23 @@ install_zellij() {
     fi
 }
 
+install_task() {
+    if ! _want_install_cmd task; then
+        echo "✅ task (taskfile.dev)"
+        return 0
+    fi
+    echo "🔧 Adding taskfile.dev (Cloudsmith) repository..."
+    curl -1sLf 'https://dl.cloudsmith.io/public/task/task/setup.deb.sh' | sudo -E bash >/dev/null 2>&1
+    _run_apt install -y -qq task
+    local ver
+    ver=$(task --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+    if [[ -n "$ver" ]]; then
+        echo "✅ task ${ver} installed"
+    else
+        echo "✅ task installed"
+    fi
+}
+
 change_shell_to_fish() {
     local fish_path
     fish_path=$(command -v fish 2>/dev/null || true)
@@ -576,6 +593,7 @@ main() {
     install_amoxide
     install_go
     install_go_packages
+    install_task
     install_firacode_nerd_font_if_gui
     install_jetbrains_mono_font_if_gui
     # install_zellij -- probably sticking with tmux
