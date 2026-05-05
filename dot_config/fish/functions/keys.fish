@@ -39,6 +39,7 @@ function keys
   echo "── Tmux (Ctrl-a unless otherwise specified, tt for session switch) ───"
   echo "Split window horizontally |  \" / h            (h for horizontal)"
   echo "Split window vertically   |  % / v            (v for vertical)"
+  echo "Change split orientation  |  space"
   echo "Maximize current panel    |  z                (z for zoom)"
   echo "Reload .tmux.conf         |  R                (R for reload)"
   echo "Send to all panes on      |  e                (e for echo)"

@@ -15,5 +15,9 @@ function pi --description "🧠 Run pi with latest Node via nvm"
         return 127
     end
 
-    command $pi_exec $argv
+    if test (count $argv) -eq 0
+        command $pi_exec "/caveman full"
+    else
+        command $pi_exec $argv
+    end
 end

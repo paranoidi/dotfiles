@@ -7,3 +7,8 @@ end
 if type -q direnv
     eval (direnv hook fish)
 end
+
+# Enable amoxide
+if type -q am
+    am init fish | source
+end

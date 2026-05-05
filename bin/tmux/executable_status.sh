@@ -33,6 +33,37 @@ if [ -n "$CURRENT_INDEX" ] && [ -n "$THIS_INDEX" ]; then
     fi
 fi
 
-# Hidden — show just the emoji icon (first field from the full status)
-ICON="$(printf '%s' "$FULL" | awk '{print $1}')"
-printf '%s' "$ICON"
+# Count total windows — collapse to emoji when count exceeds threshold
+# Threshold scales with terminal width to avoid status bar overflow.
+TOTAL_WINDOWS=$(tmux display-message -p '#{session_windows}' 2>/dev/null)
+WINDOW_WIDTH=$(tmux display-message -p '#{window_width}' 2>/dev/null)
+: "${WINDOW_WIDTH:=80}"
+
+# Scale threshold with terminal width: ~1 per 18 cols, min 3, max 10
+# Gentler slope than previous formula: less aggressive on large widths,
+# more aggressive on smaller widths.
+#THRESHOLD=$(( WINDOW_WIDTH / 16 ))
+#if [ "$THRESHOLD" -lt 3 ]; then THRESHOLD=3; fi
+#if [ "$THRESHOLD" -gt 10 ]; then THRESHOLD=10; fi
+
+# Alternative:
+# Map width to threshold: wider terminal = more room for full entries
+if   [ "$WINDOW_WIDTH" -ge 180 ]; then THRESHOLD=11
+elif [ "$WINDOW_WIDTH" -ge 170 ]; then THRESHOLD=10
+elif [ "$WINDOW_WIDTH" -ge 160 ]; then THRESHOLD=9
+elif [ "$WINDOW_WIDTH" -ge 150 ]; then THRESHOLD=8
+elif [ "$WINDOW_WIDTH" -ge 140 ]; then THRESHOLD=7
+elif [ "$WINDOW_WIDTH" -ge 120 ]; then THRESHOLD=6
+elif [ "$WINDOW_WIDTH" -ge 100 ]; then THRESHOLD=5
+elif [ "$WINDOW_WIDTH" -ge 90  ]; then THRESHOLD=5
+else                                   THRESHOLD=5
+fi
+
+if [ "$TOTAL_WINDOWS" -ge "$THRESHOLD" ]; then
+    # Hidden — show just the emoji icon
+    ICON="$(printf '%s' "$FULL" | awk '{print $1}')"
+    printf '%s' "$ICON"
+else
+    # Few windows — show full info
+    printf '%s' "$FULL"
+fi
