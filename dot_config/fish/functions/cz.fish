@@ -74,6 +74,7 @@ function cz
         echo "  cz record (r)  → Add all changes + git commit [message]"
         echo "  cz push (p)    → Push commits to remote"
         echo "  cz full (f)    → Full sync cycle [message]"
+        echo "  cz git (g)     → cd into chezmoi source directory"
         return 0
 
     # ------------------------------------------------------------
@@ -199,6 +200,13 @@ function cz
         cz record "$msg"
 
         echo "🏆 Full sync complete"
+        return 0
+
+    # ------------------------------------------------------------
+    # GIT (cd into chezmoi source)
+    # ------------------------------------------------------------
+    case git g
+        chezmoi cd
         return 0
 
     # ------------------------------------------------------------
