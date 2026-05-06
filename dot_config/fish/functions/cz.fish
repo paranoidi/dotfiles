@@ -67,14 +67,14 @@ function cz
         echo "cz - chezmoi workflow helper"
         echo ""
         echo "Commands:"
-        echo "  cz update (u)  → Pull latest state + apply to \$HOME"
-        echo "  cz add (a)     → Add local changes into chezmoi, skipping templates"
-        echo "  cz status (s)  → Show status diff"
-        echo "  cz diff (d)    → Show detailed diff"
-        echo "  cz record (r)  → Add all changes + git commit [message]"
-        echo "  cz push (p)    → Push commits to remote"
-        echo "  cz full (f)    → Full sync cycle [message]"
-        echo "  cz git (g)     → cd into chezmoi source directory"
+        echo "  cz update (u)       → Pull latest state + apply to \$HOME"
+        echo "  cz add (a) [file]   → Add all local changes into chezmoi (excl. templates) or given file"
+        echo "  cz status (s)       → Show status diff"
+        echo "  cz diff (d)         → Show detailed diff"
+        echo "  cz record (r) [msg] → Add all changes + git commit [message]"
+        echo "  cz push (p)         → Push commits to remote"
+        echo "  cz full (f) [msg]   → Full sync cycle [message]"
+        echo "  cz git (g)          → cd into chezmoi source directory"
         return 0
 
     # ------------------------------------------------------------
@@ -86,6 +86,11 @@ function cz
         chezmoi update
         chezmoi apply
 
+        for hook in (functions --all | string match '__cz_hook_update_*')
+            echo "🔧 Hook: $hook"
+            $hook
+        end
+
         echo "🏆 Update complete"
         return 0
 
@@ -93,6 +98,15 @@ function cz
     # ADD (home → repo)
     # ------------------------------------------------------------
     case add a
+        set file $argv[2]
+
+        if test -n "$file"
+            echo "🏠 cz add - Adding $file"
+            chezmoi add "$file"
+            echo "🏆 Add complete"
+            return 0
+        end
+
         echo "🏠 cz add - Importing local changes into chezmoi"
 
         __cz_import_changes

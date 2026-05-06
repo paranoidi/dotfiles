@@ -18,12 +18,14 @@ end
 
 function __tt_new_session
     set -l name (__tt_pick_free_name)
+    command tmux new-session -d -s "$name"
+    command tmux set-hook -t "$name" client-session-changed "display-message 'New session: $name'"
+    command tmux set-hook -t "$name" client-attached        "display-message 'New session: $name'"
 
     if set -q TMUX
-        command tmux new-session -d -s "$name"
         command tmux switch-client -t "$name"
     else
-        command tmux new-session -A -s "$name"
+        command tmux attach-session -t "$name"
     end
 end
 
@@ -56,11 +58,10 @@ function tt --description 'Tmux session switcher with fzf preview'
     end
 
     if not command tmux list-sessions >/dev/null 2>/dev/null
-        echo "No tmux sessions found, starting new session" >&2
-        sleep 1s
-
         set -l name (__tt_pick_free_name)
-        command tmux new-session -A -s "$name"
+        command tmux new-session -d -s "$name"
+        command tmux set-hook -t "$name" client-attached "display-message 'New session: $name'"
+        command tmux attach-session -t "$name"
         return $status
     end
 
@@ -89,6 +90,8 @@ function tt --description 'Tmux session switcher with fzf preview'
     if test "$session" = "$new_marker"
         set session (__tt_pick_free_name)
         command tmux new-session -d -s "$session"
+        command tmux set-hook -t "$session" client-session-changed "display-message 'New session: $session'"
+        command tmux set-hook -t "$session" client-attached        "display-message 'New session: $session'"
     end
 
     if set -q TMUX
