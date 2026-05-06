@@ -17,7 +17,10 @@ function __tt_pick_free_name
 end
 
 function __tt_new_session
-    set -l name (__tt_pick_free_name)
+    set -l name $argv[1]
+    if not set -q name[1]
+        set name (__tt_pick_free_name)
+    end
     command tmux new-session -d -s "$name"
     command tmux set-hook -t "$name" client-session-changed "display-message 'New session: $name'"
     command tmux set-hook -t "$name" client-attached        "display-message 'New session: $name'"
@@ -51,17 +54,35 @@ function __tt_detach_session_clients
     end
 end
 
-function tt --description 'Tmux session switcher with fzf preview'
+function tt --description 'Tmux session switcher. `tt <name>` attach or create. `tt` for fzf picker.'
+    # --new: create session with auto-generated name
     if test (count $argv) -gt 0; and test "$argv[1]" = --new
         __tt_new_session
         return $status
     end
 
+    # Name arg: attach if exists, create if not
+    if test (count $argv) -gt 0
+        set -l name $argv[1]
+        if command tmux has-session -t="$name" 2>/dev/null
+            # Session exists, switch to it
+            if set -q TMUX
+                __tt_detach_session_clients "$name"
+                command tmux switch-client -t "$name"
+            else
+                command tmux attach-session -d -t "$name"
+            end
+            return 0
+        else
+            # Session doesn't exist, create it
+            __tt_new_session "$name"
+            return $status
+        end
+    end
+
+    # No args: use fzf picker
     if not command tmux list-sessions >/dev/null 2>/dev/null
-        set -l name (__tt_pick_free_name)
-        command tmux new-session -d -s "$name"
-        command tmux set-hook -t "$name" client-attached "display-message 'New session: $name'"
-        command tmux attach-session -t "$name"
+        __tt_new_session
         return $status
     end
 
@@ -88,10 +109,8 @@ function tt --description 'Tmux session switcher with fzf preview'
     set -l session (string split -m 1 : -- "$selection")[1]
 
     if test "$session" = "$new_marker"
-        set session (__tt_pick_free_name)
-        command tmux new-session -d -s "$session"
-        command tmux set-hook -t "$session" client-session-changed "display-message 'New session: $session'"
-        command tmux set-hook -t "$session" client-attached        "display-message 'New session: $session'"
+        __tt_new_session
+        return $status
     end
 
     if set -q TMUX

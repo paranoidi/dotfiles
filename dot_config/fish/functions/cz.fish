@@ -67,14 +67,14 @@ function cz
         echo "cz - chezmoi workflow helper"
         echo ""
         echo "Commands:"
-        echo "  cz update (u)       → Pull latest state + apply to \$HOME"
-        echo "  cz add (a) [file]   → Add all local changes into chezmoi (excl. templates) or given file"
-        echo "  cz status (s)       → Show status diff"
-        echo "  cz diff (d)         → Show detailed diff"
-        echo "  cz record (r) [msg] → Add all changes + git commit [message]"
-        echo "  cz push (p)         → Push commits to remote"
-        echo "  cz full (f) [msg]   → Full sync cycle [message]"
-        echo "  cz git (g)          → cd into chezmoi source directory"
+        echo -e "  cz \e[1mu\e[0mpdate       → Pull latest state + apply to \$HOME"
+        echo -e "  cz \e[1ma\e[0mdd [file]   → Add all local changes into chezmoi (excl. templates) or given file"
+        echo -e "  cz \e[1ms\e[0mtatus       → Show status diff"
+        echo -e "  cz \e[1md\e[0miff         → Show detailed diff"
+        echo -e "  cz \e[1mr\e[0mecord [msg] → Add all changes + git commit [message]"
+        echo -e "  cz \e[1mp\e[0mush         → Push commits to remote"
+        echo -e "  cz \e[1mf\e[0mull [msg]   → Full sync cycle [message]"
+        echo -e "  cz \e[1mg\e[0mit          → cd into chezmoi source directory"
         return 0
 
     # ------------------------------------------------------------
