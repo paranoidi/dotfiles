@@ -21,9 +21,7 @@ function __tt_new_session
     if not set -q name[1]
         set name (__tt_pick_free_name)
     end
-    command tmux new-session -d -s "$name"
-    command tmux set-hook -t "$name" client-session-changed "display-message 'New session: $name'"
-    command tmux set-hook -t "$name" client-attached        "display-message 'New session: $name'"
+    command tmux new-session -d -s "$name" -e "TT_NEW_SESSION_NAME=$name"
 
     if set -q TMUX
         command tmux switch-client -t "$name"

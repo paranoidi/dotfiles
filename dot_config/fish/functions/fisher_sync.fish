@@ -3,6 +3,14 @@ function fisher_sync
         return
     end
 
+    set -l force 0
+    for arg in $argv
+        switch $arg
+            case -f --force
+                set force 1
+        end
+    end
+
     set -l plugin_file $XDG_CONFIG_HOME/fish/fish_plugins
     if not test -f $plugin_file
         return
@@ -21,7 +29,26 @@ function fisher_sync
 
     for plugin in (string match -rv '^\s*(#|$)' < $plugin_file)
         if not fisher list | grep -qx -- $plugin
-            _spinner --fallback-prefix "🔌" "Installing fisher plugin $plugin ..." fisher install $plugin
+            if test $force -eq 1
+                set -l fisher_output (fisher install $plugin 2>&1)
+                set -l fisher_status $status
+                if test $fisher_status -ne 0
+                    # Parse conflicting files from fisher error output and remove them
+                    set -l conflicts (string match -r '^\s+(/\S+\.fish)$' -- $fisher_output | string trim)
+                    if test (count $conflicts) -gt 0
+                        echo "🔧 Removing "(count $conflicts)" conflicting file(s) for $plugin"
+                        for f in $conflicts
+                            rm -f -- $f
+                            and echo "  removed $f"
+                        end
+                        _spinner --fallback-prefix "🔌" "Installing fisher plugin $plugin ..." fisher install $plugin
+                    else
+                        echo $fisher_output >&2
+                    end
+                end
+            else
+                _spinner --fallback-prefix "🔌" "Installing fisher plugin $plugin ..." fisher install $plugin
+            end
         end
     end
 
