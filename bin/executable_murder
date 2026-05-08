@@ -34,6 +34,7 @@ SIGNALS = [
 ]
 
 MY_PID = os.getpid()
+AUTO_CONFIRM = False
 console = Console()
 err_console = Console(stderr=True)
 
@@ -59,6 +60,8 @@ def get_command(pid: int) -> str:
 
 
 def confirm(prompt: str) -> bool:
+    if AUTO_CONFIRM:
+        return True
     return bool(inquirer.confirm(message=prompt, default=False).execute())
 
 
@@ -189,14 +192,21 @@ def murder(arg: str) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
+    global AUTO_CONFIRM
+
+    args = sys.argv[1:]
+    if "-y" in args:
+        AUTO_CONFIRM = True
+        args = [arg for arg in args if arg != "-y"]
+
+    if not args:
         err_console.print("usage:", style="bold")
-        err_console.print("  murder 123     kill by pid")
-        err_console.print("  murder ruby    kill by process name")
-        err_console.print("  murder :3000   kill by port")
+        err_console.print("  murder -y 123     kill by pid without confirmation")
+        err_console.print("  murder ruby      kill by process name")
+        err_console.print("  murder :3000     kill by port")
         sys.exit(1)
 
-    for arg in sys.argv[1:]:
+    for arg in args:
         murder(arg)
 
 
