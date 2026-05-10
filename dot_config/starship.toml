@@ -1,0 +1,18 @@
+[git_branch]
+style = "bg:green"
+symbol = "󰘬"
+truncation_length = 20
+truncation_symbol = "…"
+format = "[](fg:green)[$symbol $branch(:$remote_branch)](fg:black bg:green)[ ](fg:green)"
+
+[git_status]
+conflicted = "⚡"
+ahead = "⇡${count}"
+behind = "⇣${count}"
+modified = "M${count}"
+untracked = "[?${count}](bright-black)"
+staged = '[+\($count\)](green)'
+
+[cmd_duration]
+min_time = 10000  # show only if command takes > 10s
+format = "took [$duration]($style) "
