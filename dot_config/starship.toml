@@ -9,10 +9,22 @@ format = "[](fg:black)[$branch(:$remote_branch)]($style)[](fg:black bg:bla
 conflicted = "⚡"
 ahead = "⇡${count}"
 behind = "⇣${count}"
-modified = "M${count}"
+modified = " ${count}"
 untracked = "[?${count}](bright-black)"
 staged = '[+\($count\)](green)'
+stashed = " "
 
 [cmd_duration]
 min_time = 10000  # show only if command takes > 10s
 format = "took [$duration]($style) "
+
+# Customize the battery indicator
+[battery]
+format = "[$symbol $percentage]($style) "
+empty_symbol = "🪫"
+charging_symbol = "⚡"
+full_symbol = '🔋'
+
+[[battery.display]]
+threshold = 10
+style = 'red'
