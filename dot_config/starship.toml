@@ -1,9 +1,9 @@
 [git_branch]
-style = "bg:green"
-symbol = "󰘬"
+style = "bg:black"
+symbol = ""
 truncation_length = 20
 truncation_symbol = "…"
-format = "[](fg:green)[$symbol $branch(:$remote_branch)](fg:black bg:green)[ ](fg:green)"
+format = "[](fg:black)[$branch(:$remote_branch)]($style)[](fg:black bg:black)[](fg:green bg:black)[$symbol](fg:black bg:green)[](fg:green) "
 
 [git_status]
 conflicted = "⚡"
