@@ -23,5 +23,5 @@ function gco --description "🔀 git checkout a branch with fzf"
     )
     or return
 
-    git checkout -- $selected_branch
+    git checkout $selected_branch
 end
