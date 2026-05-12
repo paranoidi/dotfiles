@@ -29,7 +29,7 @@ command_icon() {
         cp|rsync|dd)            printf '💾' ;;
         ssh|scp)                printf '📡' ;;
         curl|wget|gh)           printf '🌐' ;;
-        eza|mc)                 printf '🗂️' ;;
+        eza|mc|pc)              printf '🗂️' ;;
         vi)                     printf '✏️' ;;
         rm)                     printf '☠️ ' ;;
         du)                     printf '📊' ;;
