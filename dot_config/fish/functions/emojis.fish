@@ -26,7 +26,7 @@ function emojis --description '🎉 Print terminal-friendly emojis for copy and 
     end
     printf '%s\n' ''
     printf '%s\n' 'Iconic emojis:'
-    printf '%s\n' ' 󰉍 󰲂 󱍙 󰉏    󰇚'
+    printf '%s\n' ' 󰉍 󰲂 󱍙 󰉏         󰇚'
     printf '%s\n' ''
     printf '%s\n' 'Markers:'
     printf '%s\n' '○ ● ◇ ◆'
