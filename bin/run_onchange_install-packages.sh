@@ -22,6 +22,11 @@ GO_PACKAGES=(
     github.com/charmbracelet/gum@latest
 )
 
+# Python tools installed with `uv tool install` after uv is available.
+UV_TOOLS=(
+    tldr
+)
+
 # =============================================================================
 
 # Raspberry Pi / Raspberry Pi OS
@@ -409,6 +414,62 @@ install_go_packages() {
     fi
 }
 
+_uv_cmd() {
+    if command -v uv >/dev/null 2>&1; then
+        command -v uv
+        return 0
+    fi
+    if [[ -x "${HOME}/.local/bin/uv" ]]; then
+        printf '%s\n' "${HOME}/.local/bin/uv"
+        return 0
+    fi
+    if [[ -x "${HOME}/.cargo/bin/uv" ]]; then
+        printf '%s\n' "${HOME}/.cargo/bin/uv"
+        return 0
+    fi
+    return 1
+}
+
+install_uv() {
+    if ! _want_install_cmd uv; then
+        echo "✅ uv"
+        return 0
+    fi
+    echo "🌐 Installing uv (astral)..."
+    # Official installer; non-interactive; adds ~/.local/bin/uv by default.
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    echo "✅ uv installed"
+}
+
+install_uv_tools() {
+    local uv_bin tool failed_tools=()
+    uv_bin=$(_uv_cmd || true)
+    if [[ -z "$uv_bin" ]]; then
+        echo "⚠️  uv not on PATH, skipping uv tool installs" >&2
+        return 0
+    fi
+    export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
+
+    for tool in "${UV_TOOLS[@]}"; do
+        if ! _want_install_cmd "$tool"; then
+            echo "✅ ${tool}"
+            continue
+        fi
+        echo "📦 Installing ${tool} via uv..."
+        if "$uv_bin" tool install "$tool"; then
+            echo "✅ ${tool} installed"
+        else
+            echo "❌ uv tool install ${tool} failed" >&2
+            failed_tools+=("$tool")
+        fi
+    done
+
+    if [ ${#failed_tools[@]} -gt 0 ]; then
+        echo "⚠️  uv tools that failed to install: ${failed_tools[*]}" >&2
+        return 1
+    fi
+}
+
 install_firacode_nerd_font_if_gui() {
     if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
         return 0
@@ -586,6 +647,8 @@ main() {
 
     install_apt_packages
     ensure_fd_symlink
+    install_uv
+    install_uv_tools
     install_fzf
     install_starship
     install_eza
