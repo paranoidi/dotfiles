@@ -165,9 +165,9 @@ function __cz_clean
         set -l subj (git -C "$sd" log -1 --pretty=%s "$D" 2>/dev/null)
 
         echo ""
-        echo "Source (removed from repo): $rel_path"
-        echo "Deleting commit: $subj"
-        echo "Still on disk: $target"
+        echo "Removed from repo : $rel_path"
+        echo "Deleting commit   : $subj"
+        echo "Still on disk     : $target"
 
         read -P "Remove this path? [y/N/q] " ans
 
@@ -267,7 +267,7 @@ function cz
         echo -e "  cz \e[1mr\e[0mecord [msg] → Add all changes + git commit [message]"
         echo -e "  cz \e[1mp\e[0mush         → Push commits to remote"
         echo -e "  cz \e[1mf\e[0mull [msg]   → Full sync cycle [message]"
-        echo -e "  cz \e[1mc\e[0mlean        → Offer to remove deleted files (git deletes; renames not covered); per-decline optional keep-local record in git"
+        echo -e "  cz \e[1mc\e[0mlean        → Offer to remove deleted files (git deletes; renames not covered)"
         echo -e "  cz \e[1mg\e[0mit          → cd into chezmoi source directory"
         return 0
 
