@@ -59,4 +59,5 @@ function helpers --description 'List user-created and available helper commands'
     echo ""
     echo "── Manual helpers ────────────────────────────────────────────────────"
     printf '%-25s %s\n' mark 'save the current directory as an fzf mark'
+    printf '%-25s %s\n' tldr 'show minimal usage for commands'
 end
