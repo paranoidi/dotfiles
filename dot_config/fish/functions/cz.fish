@@ -19,7 +19,12 @@ function __cz_status_without_template_sources
             continue
         end
 
-        echo "$line"
+        # Chezmoi uses " R" for run-on-apply scripts; avoid confusion with Removed.
+        if string match -rq '^ R' -- "$line"
+            echo (string replace -r '^ R' '🚀' -- "$line")
+        else
+            echo "$line"
+        end
     end
 end
 
