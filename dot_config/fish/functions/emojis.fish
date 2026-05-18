@@ -25,7 +25,7 @@ function emojis --description '🎉 Print terminal-friendly emojis for copy and 
         printf '%s\n' (string join ' ' $double_width)' '
     end
     printf '%s\n' ''
-    printf '%s\n' 'Iconic emojis:'
+    printf '%s\n' 'Iconic emojis (use helper glyphs for much more):'
     printf '%s\n' ' 󰉍 󰲂 󱍙 󰉏         󰇚'
     printf '%s\n' ''
     printf '%s\n' 'Markers:'

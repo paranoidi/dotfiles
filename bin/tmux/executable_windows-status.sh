@@ -35,6 +35,7 @@ command_icon() {
         du)                     printf '📊' ;;
         pi|llm|aichat|copilot)  printf '🧠' ;;
         bat|less)               printf '📃' ;;
+        apt)                    printf '🔧' ;;
         man)                    printf '📖' ;;
         *)                      printf '%s' "$1" ;;
     esac

@@ -32,6 +32,52 @@ function __cz_source_dir
     chezmoi execute-template '{{ .chezmoi.sourceDir }}'
 end
 
+function __cz_git_repo_summary
+    set -l sd (__cz_source_dir)
+
+    if not test -d "$sd"
+        echo "🚫 chezmoi source directory not found: $sd"
+        return 1
+    end
+
+    if not git -C "$sd" rev-parse --is-inside-work-tree >/dev/null 2>&1
+        echo "🚫 Not a git repository: $sd"
+        return 1
+    end
+
+    set -l staged_paths (git -C "$sd" diff --cached --name-only | string trim | string match -rv '^$')
+    set -l modified_paths (git -C "$sd" diff --name-only | string trim | string match -rv '^$')
+    set -l lines
+
+    set -l staged_count (count $staged_paths)
+    if test $staged_count -gt 0
+        set -a lines "   staged:   $staged_count file(s)"
+    end
+
+    set -l modified_count (count $modified_paths)
+    if test $modified_count -gt 0
+        set -a lines "   modified: $modified_count file(s) (unstaged)"
+    end
+
+    if git -C "$sd" rev-parse --abbrev-ref @{upstream} >/dev/null 2>&1
+        set -l unpushed (git -C "$sd" rev-list --count @{upstream}..HEAD 2>/dev/null)
+        if test "$unpushed" -gt 0
+            set -a lines "   unpushed: $unpushed commit(s)"
+        end
+    end
+
+    if test (count $lines) -eq 0
+        return 2
+    end
+
+    echo "🔀 Chezmoi git"
+    for line in $lines
+        echo $line
+    end
+
+    return 0
+end
+
 function __cz_rel_path_in_head --argument-names sd rel_path
     git -C "$sd" cat-file -e "HEAD:$rel_path" 2>/dev/null
 end
@@ -286,7 +332,7 @@ function cz
         chezmoi apply
 
         for hook in (functions --all | string match '__cz_hook_update_*')
-            echo "🔧 Hook: $hook"
+            echo "⚓️ Hook: $hook"
             $hook
         end
 
@@ -336,6 +382,17 @@ function cz
     # ------------------------------------------------------------
     case status s
         echo "🏠 cz status"
+        __cz_git_repo_summary
+        switch $status
+        case 0
+            echo ""
+        case 2
+            # nothing noteworthy in chezmoi git
+        case 1
+            return 1
+        case '*'
+            return $status
+        end
         __cz_status_without_template_sources
         return 0
 

@@ -7,11 +7,11 @@ format = "[](fg:black)[$branch(:$remote_branch)]($style)[](fg:black bg:bla
 
 [git_status]
 conflicted = "⚡"
-ahead = " [⇡${count}](green)"
-behind = " ⇣${count}"
-modified = " ${count}"
-untracked = "[ 󰘓 ${count}](bright-black)"
-staged = '[󱡢 ${count}](green)'
+ahead = "[⇡${count}](green)"
+behind = "⇣${count}"
+modified = " ${count}"
+untracked = "[?${count}](bright-black)"
+staged = '[ ${count}](green)'
 stashed = " "
 
 [cmd_duration]
