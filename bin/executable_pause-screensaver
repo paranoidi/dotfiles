@@ -1,0 +1,86 @@
+#!/bin/sh
+# Disable Cinnamon screensaver for N hours (default: 4), then restore settings.
+# Returns immediately — no terminal sleep. Restore happens via a systemd timer
+# at the scheduled time or via the guard service at shutdown/logout.
+# Run resume-screensaver to restore early.
+#
+# Usage: pause-screensaver [HOURS]
+
+HOURS="${1:-4}"
+
+case "$HOURS" in
+    ''|*[!0-9]*) echo "Usage: pause-screensaver [HOURS]" >&2; exit 1 ;;
+esac
+[ "$HOURS" -gt 0 ] 2>/dev/null || { echo "HOURS must be a positive integer." >&2; exit 1; }
+
+SLEEP_SECONDS=$((HOURS * 3600))
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+STATE_FILE="$HOME/.local/share/pause-screensaver/saved-settings"
+SERVICE_NAME="pause-screensaver"
+SERVICE_FILE="$HOME/.config/systemd/user/${SERVICE_NAME}.service"
+TIMER_UNIT="${SERVICE_NAME}-timer"
+
+# Prerequisite checks
+for cmd in gsettings systemctl systemd-run; do
+    command -v "$cmd" > /dev/null 2>&1 || { echo "Required command not found: $cmd" >&2; exit 1; }
+done
+[ -x "${SCRIPT_DIR}/restore-screensaver" ] || { echo "Missing: ${SCRIPT_DIR}/restore-screensaver" >&2; exit 1; }
+[ -x "${SCRIPT_DIR}/resume-screensaver" ] || { echo "Missing: ${SCRIPT_DIR}/resume-screensaver" >&2; exit 1; }
+
+# Double-invocation guard: check units first, then state file
+if systemctl --user is-active --quiet "${SERVICE_NAME}.service" 2>/dev/null || \
+   systemctl --user is-active --quiet "${TIMER_UNIT}.timer" 2>/dev/null; then
+    echo "pause-screensaver is already active. Run resume-screensaver to cancel." >&2
+    exit 1
+fi
+if [ -f "$STATE_FILE" ]; then
+    # Stale state from a previous crash — clean up silently
+    "${SCRIPT_DIR}/resume-screensaver" > /dev/null 2>&1 || true
+fi
+
+# Abort handler: called if any setup step fails after state is written
+abort() {
+    echo "Setup failed, restoring settings..." >&2
+    "${SCRIPT_DIR}/resume-screensaver"
+    exit 1
+}
+
+# 1. Save current settings
+mkdir -p "$(dirname "$STATE_FILE")"
+cat > "$STATE_FILE" << EOF
+SAVED_LOCK_ENABLED=$(gsettings get org.cinnamon.desktop.screensaver lock-enabled)
+SAVED_IDLE_ACTIVATION=$(gsettings get org.cinnamon.desktop.screensaver idle-activation-enabled)
+SAVED_IDLE_DELAY=$(gsettings get org.gnome.desktop.session idle-delay)
+EOF
+
+# 2. Install guard service (restores settings on logout/shutdown via ExecStop)
+mkdir -p "$HOME/.config/systemd/user"
+cat > "$SERVICE_FILE" << EOF
+[Unit]
+Description=Restore Cinnamon screensaver settings on session end
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/true
+ExecStop=${SCRIPT_DIR}/restore-screensaver
+EOF
+systemctl --user daemon-reload
+systemctl --user start "${SERVICE_NAME}.service" || abort
+
+# 3. Schedule restore via transient systemd timer
+systemd-run --user \
+    --on-active="${SLEEP_SECONDS}s" \
+    --unit="$TIMER_UNIT" \
+    --collect \
+    --description="Restore screensaver after ${HOURS}h" \
+    "${SCRIPT_DIR}/resume-screensaver" || abort
+
+# 4. Disable screensaver settings
+gsettings set org.cinnamon.desktop.screensaver lock-enabled false || abort
+gsettings set org.cinnamon.desktop.screensaver idle-activation-enabled false || abort
+gsettings set org.gnome.desktop.session idle-delay 0 || abort
+
+echo "Screensaver disabled for ${HOURS}h. Will restore at $(date -d "+${SLEEP_SECONDS} seconds" '+%H:%M:%S')."
+echo "Run 'resume-screensaver' to restore early."

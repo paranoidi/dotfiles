@@ -1,0 +1,18 @@
+#!/bin/sh
+# Restore Cinnamon screensaver settings saved by pause-screensaver.
+# Safe to call multiple times — does nothing if no state file exists.
+
+STATE_FILE="$HOME/.local/share/pause-screensaver/saved-settings"
+
+[ -f "$STATE_FILE" ] || exit 0
+
+# shellcheck source=/dev/null
+. "$STATE_FILE"
+
+echo "Restoring screensaver settings..."
+gsettings set org.cinnamon.desktop.screensaver lock-enabled "$SAVED_LOCK_ENABLED"
+gsettings set org.cinnamon.desktop.screensaver idle-activation-enabled "$SAVED_IDLE_ACTIVATION"
+gsettings set org.gnome.desktop.session idle-delay "$SAVED_IDLE_DELAY"
+
+rm -f "$STATE_FILE"
+echo "Done."

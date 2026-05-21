@@ -1,0 +1,22 @@
+#!/bin/sh
+# Restore Cinnamon screensaver settings and cancel the scheduled pause-screensaver
+# timer. Called automatically when the timer fires or manually to restore early.
+
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+SERVICE_NAME="pause-screensaver"
+SERVICE_FILE="$HOME/.config/systemd/user/${SERVICE_NAME}.service"
+TIMER_UNIT="${SERVICE_NAME}-timer"
+
+# Cancel scheduled timer (no-op if already elapsed, not running, or collected)
+systemctl --user stop "${TIMER_UNIT}.timer" 2>/dev/null || true
+systemctl --user reset-failed "${TIMER_UNIT}.timer" 2>/dev/null || true
+systemctl --user reset-failed "${TIMER_UNIT}.service" 2>/dev/null || true
+
+# Restore screensaver settings (idempotent: exits silently if no state file)
+"${SCRIPT_DIR}/restore-screensaver"
+
+# Stop guard service; ExecStop re-runs restore harmlessly (state file already gone)
+systemctl --user stop "${SERVICE_NAME}.service" 2>/dev/null || true
+systemctl --user reset-failed "${SERVICE_NAME}.service" 2>/dev/null || true
+rm -f "$SERVICE_FILE"
+systemctl --user daemon-reload
