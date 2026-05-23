@@ -27,3 +27,9 @@ This directory contains Fish shell configuration managed with chezmoi.
 - Add newly generated files to chezmoi with `chezmoi add <path>`.
 - Leave modified existing files for the user to manage unless they explicitly ask you to run `chezmoi add` for them.
 - Do not run broad chezmoi operations when a targeted `chezmoi add <path>` is sufficient.
+
+## Tool dependencies
+
+- All scripts depending on certain functionality such as tsp should abort immediately if tool is not installed.
+- If tool has a dependency that could be considered optional downgrade gracefully. 
+  Example would be notifications which depend on tmux being installed for toast messages.
