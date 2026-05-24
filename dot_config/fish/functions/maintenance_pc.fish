@@ -71,5 +71,5 @@ function maintenance_pc
         set -a script --force
     end
 
-    tsp -L maintenance_pc fish -c (string escape -- $script)
+    tsp -L maintenance_pc fish -c (string join ' ' -- $script)
 end
