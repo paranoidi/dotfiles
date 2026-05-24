@@ -13,7 +13,7 @@ function maintenance_pc
             set -a install_flags -a
         end
 
-        set -l build_log (go install $install_flags github.com/paranoidi/paras-commander/cmd/pc@latest 2>/dev/null)
+        set -l build_log (go install $install_flags github.com/paranoidi/paras-commander/cmd/pc@main 2>/dev/null)
         if test $status -ne 0
             return $status
         end
@@ -36,7 +36,7 @@ function maintenance_pc
             end
         end
         if test -z "$pc_version"
-            set pc_version (go list -m -f '{{.Version}}' github.com/paranoidi/paras-commander@latest 2>/dev/null)
+            set pc_version (go list -m -f '{{.Version}}' github.com/paranoidi/paras-commander@main 2>/dev/null)
         end
 
         set -l message '🏆 pc updated'
