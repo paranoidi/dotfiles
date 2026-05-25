@@ -468,6 +468,7 @@ function cz
         cz update
         cz add
         cz record "$msg"
+        cz push
 
         echo "🏆 Full sync complete"
         return 0
