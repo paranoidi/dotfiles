@@ -140,7 +140,8 @@ function __wt_start -a root_dir worktree_dir args
 
     echo "🏆 Worktree created: $name (branch: $task_branch)"
     cd $wtdir
-    pi
+    set -l agent (test -n "$DEFAULT_AGENT"; and echo "$DEFAULT_AGENT"; or echo "pi")
+    $agent
 end
 
 # ── wt status ─────────────────────────────────────────────────────────
@@ -188,7 +189,7 @@ function __wt_status -a root_dir worktree_dir
             else
                 echo "    commits: $ahead ahead, $behind behind (vs $cmp_human)"
                 if test "$cmp_is_topic" -eq 0
-                    echo "    origin:  no origin/$branch yet — git push -u origin $branch"
+                    echo "    sync:    no origin/$branch ref — commits are local only"
                 end
             end
         end
@@ -215,19 +216,17 @@ function __wt_done -a root_dir worktree_dir name
     #    worktree cannot `checkout main` in that case, which used to yield a false “Already up to date”.
     echo "--- Merging ---"
     set -l task_branch "task/$name"
-    git -C $root_dir fetch origin main 2>/dev/null; or echo "  (no remote / fetch skipped)"
+    git -C $root_dir fetch origin main 2>/dev/null; or echo "  (fetch skipped — no network)"
     git -C $root_dir checkout main
     if test $status -ne 0
         echo "🚫 could not checkout main in $root_dir (resolve repo state and retry)" >&2
         return 1
     end
-    git -C $root_dir pull origin main 2>/dev/null; or echo "  (no remote / pull skipped)"
     git -C $root_dir merge $task_branch --no-edit
     if test $status -ne 0
         echo "🚫 merge $task_branch into main failed — fix conflicts in $root_dir, then run: wt done $name" >&2
         return 1
     end
-    git -C $root_dir push origin main 2>/dev/null; or echo "  (no remote / push skipped)"
     echo "  merged $task_branch -> main"
 
     # 2. Cleanup — remove worktree first so task_branch is no longer checked out, then delete branch ref
@@ -237,10 +236,10 @@ function __wt_done -a root_dir worktree_dir name
     git -C $root_dir worktree prune
     git -C $root_dir branch -d $task_branch 2>/dev/null
     or echo "🚫 could not delete local branch $task_branch" >&2
-    git -C $root_dir push origin --delete $task_branch 2>/dev/null; or true
 
     echo ""
     echo "🏆 Done: $name -- merged to main"
+    cd $root_dir
 end
 
 # ── wt done (no args, not under worktree: fzf single-select) ────────
@@ -324,7 +323,6 @@ function __wt_kill -a root_dir worktree_dir name
     end
     git -C $root_dir worktree prune
     git -C $root_dir branch -D "task/$name" 2>/dev/null; or true
-    git -C $root_dir push origin --delete "task/$name" 2>/dev/null; or true
     echo "☠️ Abandoned: $name"
 end
 

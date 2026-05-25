@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+summary=$(pyright --threads 4 "$@" 2>/dev/null | grep -E '^[0-9]+ error' | tail -1)
+
+errors=$(echo "$summary"   | grep -oP '^\d+(?= error)'      || echo 0)
+warnings=$(echo "$summary" | grep -oP '\d+(?= warning)'     || echo 0)
+infos=$(echo "$summary"    | grep -oP '\d+(?= information)' || echo 0)
+
+#echo "E${errors}W${warnings}I${infos}"
+echo "E${errors}"
