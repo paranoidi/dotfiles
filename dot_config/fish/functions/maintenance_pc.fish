@@ -40,7 +40,7 @@ function maintenance_pc
                 set pc_version (git -C $repo_dir describe --tags --always 2>/dev/null)
             end
 
-            set -l message '🏆 pc updated'
+            set -l message '   pc updated'
             if test -n "$pc_version"; and test -n "$go_toolchain"
                 set message "$message ($pc_version, $go_toolchain)"
             else if test -n "$pc_version"

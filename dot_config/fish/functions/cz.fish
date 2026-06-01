@@ -45,37 +45,73 @@ function __cz_git_repo_summary
         return 1
     end
 
-    set -l staged_paths (git -C "$sd" diff --cached --name-only | string trim | string match -rv '^$')
-    set -l modified_paths (git -C "$sd" diff --name-only | string trim | string match -rv '^$')
-    set -l lines
+    # Branch info
+    set -l branch (git -C "$sd" rev-parse --abbrev-ref HEAD 2>/dev/null)
+    printf "🔀 chezmoi git [%s]" "$branch"
 
-    set -l staged_count (count $staged_paths)
-    if test $staged_count -gt 0
-        set -a lines "   staged:   $staged_count file(s)"
-    end
-
-    set -l modified_count (count $modified_paths)
-    if test $modified_count -gt 0
-        set -a lines "   modified: $modified_count file(s) (unstaged)"
-    end
-
+    # Ahead/behind
     if git -C "$sd" rev-parse --abbrev-ref @{upstream} >/dev/null 2>&1
-        set -l unpushed (git -C "$sd" rev-list --count @{upstream}..HEAD 2>/dev/null)
-        if test "$unpushed" -gt 0
-            set -a lines "   unpushed: $unpushed commit(s)"
+        set -l ahead (git -C "$sd" rev-list --count @{upstream}..HEAD 2>/dev/null)
+        set -l behind (git -C "$sd" rev-list --count HEAD..@{upstream} 2>/dev/null)
+        if test "$ahead" -gt 0; or test "$behind" -gt 0
+            printf "  %s↑ %s↓" "$ahead" "$behind"
+        end
+    end
+    echo ""
+
+    set -l has_any 0
+
+    # Staged changes
+    set -l staged (git -C "$sd" diff --cached --name-status 2>/dev/null)
+    if test -n "$staged"
+        if test $has_any -eq 1
+            echo ""
+        end
+        set has_any 1
+        __cz_git_repo_section_header "staged" "33"
+        for line in $staged
+            echo "$line" | string replace -r '^([^	]+)	' '$1  '
         end
     end
 
-    if test (count $lines) -eq 0
+    # Unstaged modified
+    set -l modified (git -C "$sd" diff --name-only 2>/dev/null)
+    if test -n "$modified"
+        if test $has_any -eq 1
+            echo ""
+        end
+        set has_any 1
+        __cz_git_repo_section_header "unstaged" "36"
+        for f in $modified
+            echo "$f" | string replace -r '^' 'M  '
+        end
+    end
+
+    # Untracked
+    set -l untracked (git -C "$sd" ls-files --others --exclude-standard 2>/dev/null | string match -rv '^.chezmoi')
+    if test -n "$untracked"
+        if test $has_any -eq 1
+            echo ""
+        end
+        set has_any 1
+        __cz_git_repo_section_header "untracked" "90"
+        for f in $untracked
+            echo "$f" | string replace -r '^' '?  '
+        end
+    end
+
+    if test $has_any -eq 0
+        echo "✓ clean"
         return 2
     end
 
-    echo "🔀 Chezmoi git"
-    for line in $lines
-        echo $line
-    end
-
     return 0
+end
+
+function __cz_git_repo_section_header
+    set -l label $argv[1]
+    set -l color $argv[2]
+    printf "\033[%sm◆ %s\033[0m\n" "$color" "$label"
 end
 
 function __cz_rel_path_in_head --argument-names sd rel_path
@@ -383,16 +419,19 @@ function cz
     case status s
         echo "🏠 cz status"
         __cz_git_repo_summary
-        switch $status
+        set -l gs $status
+        switch $gs
         case 0
-            echo ""
         case 2
-            # nothing noteworthy in chezmoi git
+            # clean — no separator needed before pending heading
         case 1
             return 1
         case '*'
-            return $status
+            return $gs
         end
+        # Clear visual boundary before chezmoi diff output
+        echo ""
+        __cz_git_repo_section_header "pending" "35"
         __cz_status_without_template_sources
         return 0
 
