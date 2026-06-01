@@ -14,5 +14,17 @@ gsettings set org.cinnamon.desktop.screensaver lock-enabled "$SAVED_LOCK_ENABLED
 gsettings set org.cinnamon.desktop.screensaver idle-activation-enabled "$SAVED_IDLE_ACTIVATION"
 gsettings set org.gnome.desktop.session idle-delay "$SAVED_IDLE_DELAY"
 
+# Restore DPMS state
+gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-timeout "$SAVED_SLEEP_AC_TIMEOUT"
+gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-timeout "$SAVED_SLEEP_BATTERY_TIMEOUT"
+gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type "$SAVED_SLEEP_AC_TYPE"
+gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type "$SAVED_SLEEP_BATTERY_TYPE"
+
+# Restore DPMS (re-enable + set timeouts)
+xset dpms "$SAVED_DPMS_STANDBY" "$SAVED_DPMS_SUSPEND" "$SAVED_DPMS_OFF"
+if [ "$SAVED_DPMS_ENABLED" = false ]; then
+    xset -dpms
+fi
+
 rm -f "$STATE_FILE"
 echo "Done."

@@ -14,6 +14,7 @@ vim.opt.relativenumber = true
 -- ─── Customizatiopn  ─────────────────────────────────────────────
 -- Trim trailing spaces
 vim.keymap.set("x", "<leader>ts", ":s/\\s\\+$//e<CR>", { silent = true })
+vim.g.mapleader = ' '   -- Set leader key to Space
 
 -- ─── Filetype Specific ───────────────────────────────────────────
 -- Python: 4 spaces (PEP 8 standard)

@@ -21,7 +21,7 @@ SERVICE_FILE="$HOME/.config/systemd/user/${SERVICE_NAME}.service"
 TIMER_UNIT="${SERVICE_NAME}-timer"
 
 # Prerequisite checks
-for cmd in gsettings systemctl systemd-run; do
+for cmd in gsettings systemctl systemd-run xset; do
     command -v "$cmd" > /dev/null 2>&1 || { echo "Required command not found: $cmd" >&2; exit 1; }
 done
 [ -x "${SCRIPT_DIR}/restore-screensaver" ] || { echo "Missing: ${SCRIPT_DIR}/restore-screensaver" >&2; exit 1; }
@@ -50,7 +50,15 @@ mkdir -p "$(dirname "$STATE_FILE")"
 cat > "$STATE_FILE" << EOF
 SAVED_LOCK_ENABLED=$(gsettings get org.cinnamon.desktop.screensaver lock-enabled)
 SAVED_IDLE_ACTIVATION=$(gsettings get org.cinnamon.desktop.screensaver idle-activation-enabled)
-SAVED_IDLE_DELAY=$(gsettings get org.gnome.desktop.session idle-delay)
+SAVED_IDLE_DELAY=$(gsettings get org.gnome.desktop.session idle-delay | awk '{print $NF}')
+SAVED_DPMS_STANDBY=$(xset q | awk '/^DPMS/,/^$/' | awk '/Standby:/{print $2}')
+SAVED_DPMS_SUSPEND=$(xset q | awk '/^DPMS/,/^$/' | awk '/Suspend:/{print $4}')
+SAVED_DPMS_OFF=$(xset q | awk '/^DPMS/,/^$/' | awk '/Off:/{print $NF}')
+SAVED_DPMS_ENABLED=$(xset q | grep -q 'DPMS is Enabled' && echo true || echo false)
+SAVED_SLEEP_AC_TIMEOUT=$(gsettings get org.gnome.settings-daemon.plugins.power sleep-inactive-ac-timeout | awk '{print $NF}')
+SAVED_SLEEP_AC_TYPE=$(gsettings get org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type)
+SAVED_SLEEP_BATTERY_TIMEOUT=$(gsettings get org.gnome.settings-daemon.plugins.power sleep-inactive-battery-timeout | awk '{print $NF}')
+SAVED_SLEEP_BATTERY_TYPE=$(gsettings get org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type)
 EOF
 
 # 2. Install guard service (restores settings on logout/shutdown via ExecStop)
@@ -80,7 +88,15 @@ systemd-run --user \
 # 4. Disable screensaver settings
 gsettings set org.cinnamon.desktop.screensaver lock-enabled false || abort
 gsettings set org.cinnamon.desktop.screensaver idle-activation-enabled false || abort
-gsettings set org.gnome.desktop.session idle-delay 0 || abort
+gsettings set org.gnome.desktop.session idle-delay 86400 || abort
+
+# 5. Disable DPMS (monitor power saving)
+xset -dpms || abort
+xset s off 2>/dev/null || true
+
+# 6. Disable GNOME power sleep (suspend on idle)
+gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-timeout 0 || abort
+gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-timeout 0 || abort
 
 echo "Screensaver disabled for ${HOURS}h. Will restore at $(date -d "+${SLEEP_SECONDS} seconds" '+%H:%M:%S')."
 echo "Run 'resume-screensaver' to restore early."

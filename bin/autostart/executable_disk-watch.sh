@@ -40,7 +40,7 @@ while true; do
     if (( avail_kb < MIN_KB )); then
       below=true
       gib=$(awk -v kb="$avail_kb" 'BEGIN {printf "%.2f", kb / 1024 / 1024}')
-      lines+=("$mp ($p): ${gib} GiB free")
+      lines+=("$mp: ${gib} GiB free")
     fi
   done
 
