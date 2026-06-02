@@ -15,10 +15,12 @@ normalize_cmd() {
 }
 
 command_icon() {
-    case "$1" in
+    local cmd="$1"
+    case "$cmd" in
         fish)                   printf '🐟' ;;
         bash)                   printf '💩' ;;
         python3|python|uv|pip)  printf '🐍' ;;
+        hermes)                 printf '🧠' ;;
         ruby)                   printf '💎' ;;
         perl)                   printf '🐪' ;;
         git)                    printf '🔀' ;;
@@ -77,6 +79,12 @@ short_title() {
 # original_cmd is kept for suffix stripping (e.g. "- VIM", "- NVIM")
 original_cmd="$cmd"
 cmd="$(normalize_cmd "$cmd")"
+
+# Disambiguate before icon lookup so command_icon stays a pure case statement
+# Hermes runs via python3/uv/pip but should show 🧠, not 🐍
+if [[ "$cmd" =~ ^(python3|python|uv|pip)$ ]] && echo "$title" | grep -qi 'hermes'; then
+    cmd='hermes'
+fi
 
 # --- icon + title mode ---
 icon="$(command_icon "$cmd")"

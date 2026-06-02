@@ -429,10 +429,13 @@ function cz
         case '*'
             return $gs
         end
-        # Clear visual boundary before chezmoi diff output
-        echo ""
-        __cz_git_repo_section_header "pending" "35"
-        __cz_status_without_template_sources
+        # Only show pending section when there are actual pending files
+        set -l pending (__cz_status_without_template_sources)
+        if test -n "$pending"
+            echo ""
+            __cz_git_repo_section_header "pending" "35"
+            printf '%s\n' $pending
+        end
         return 0
 
     # ------------------------------------------------------------
