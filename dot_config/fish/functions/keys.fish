@@ -1,64 +1,17 @@
-function keys
-  echo "── Fish ───────────────────────────────────────────────────────────────"
-  echo "Current command to editor |  Alt-E            (E for edit)" 
-  echo "Delete word (yank)        |  Ctrl-W           (W for word)" 
-  echo "Insert word (yank)        |  Ctrl-Y           (Y for yank)"
-  echo ""
-  echo "── FZF ────────────────────────────────────────────────────────────────"
-  echo "Search History            |  Ctrl-R           (R for reverse)"
-  echo "Search and insert file    |  Ctrl-T"
-  echo "Cd into directory         |  Alt-C"
-  echo "Search Processes          |  Ctrl-P           (P for process)"
-  echo "Kill process              |  Ctrl-Alt-P"
-  echo "Search Variables          |  Ctrl-Alt-Shift-V (V for variable)"
-  echo "Jump to mark              |  Ctrl-E           (E for explore)"
-  echo ""
-  echo "── FZF search syntax ─────────────────────────────────────────────────"
-  echo "'wild                     |  exact-match"
-  echo "'wild'                    |  exact-boundary-match"
-  echo "^music                    |  prefix-exact-match"
-  echo '.mp3$                     |  suffix-exact-match'
-  echo "!fire                     |  inverse-exact-match"
-  echo "!^music                   |  inverse-prefix-exact-match"
-  echo '!.mp3$                    |  inverse-suffix-exact-match'
-  echo ""
-  echo "── GIT (Ctrl-G) ──────────── Note: Ctrl is optional ───────────────────"
-  echo "Files                     |  Ctrl-F           (F for files)"
-  echo "Branches                  |  Ctrl-B           (B for branches)"
-  echo "Tags                      |  Ctrl-T           (T for tags)"
-  echo "Remotes                   |  Ctrl-R           (R for remotes)"
-  echo "Commit History            |  Ctrl-H           (H for history"
-  echo "Stashes                   |  Ctrl-S           (S for stashes)"
-  echo "Reflogs                   |  Ctrl-L           (L for reflogs)"
-  echo "Worktrees                 |  Ctrl-W           (W for worktrees)"
-  echo "Each ref                  |  Ctrl-E           (E for each ref)"
-  echo ""
-  echo "── FZF (PatrickF1) -- mostly unbinded? ────────────────────────────────"
-  echo "Search Directory          |  Ctrl-Alt+F       (F for file)"
-  echo ""
-  echo "── Tmux (Ctrl-a unless otherwise specified, tt for session switch) ───"
-  echo "Split window horizontally |  \" / h            (h for horizontal)"
-  echo "Split window vertically   |  % / v            (v for vertical)"
-  echo "Change split orientation  |  space"
-  echo "Maximize current panel    |  z                (z for zoom)"
-  echo "Reload .tmux.conf         |  R                (R for reload)"
-  echo "Send to all panes on      |  e                (e for echo)"
-  echo "Send to all panes off     |  E                (E for echo)"
-  echo "Kill session              |  K                (K for kill)"
-  echo "Chat with LLM             |  i                (i for intelligence)"
-  echo "List windows              |  w                (w for windows)"
-  echo "Next window               |  n / Alt-PgDown   (n for next)"
-  echo "Previous window           |  p / Alt-PgUp     (p for previous)"
-  echo "Move after current win    |  Ctrl-Alt-PgDown"
-  echo "Move before current win   |  Ctrl-Alt-PgUp"
-  echo "Clear terminal and buffer |  l                (l is standard in shell)"
-  echo "Scroll up                 |  Ctrl-PgUp"
-  echo "Scroll down               |  Ctrl-PgDown"
-  echo "Previous window           |  Ctrl-a twice"
-  echo "Send Ctrl-a when nested   |  Ctrl-q"
-  echo "Install tmux plugins      |  I                (I for install)"
-  echo "Uninstall plugins         |  alt-u            (u for uninstall)"
-  echo ""
-  echo "── Other ──────────────────────────────────────────────────────────────"
-  echo "Select docker container   | Ctrl-Alt-D        (D for docker)"
+function keys --description "🔑 Browse keyboard shortcuts with fzf"
+    set -l dir (dirname (status filename))
+    set -l sections (string replace -r '.*/keys-' '' (string replace '.fish' '' $dir/keys-*.fish))
+    set -l preview_cmd "fish -c keys-{}"
+
+    set -l selected (
+        printf "%s\n" $sections |
+        fzf-tmux \
+            --ansi \
+            --prompt="keys> " \
+            --preview=$preview_cmd \
+            --preview-window=right:60%:wrap
+    )
+    or return
+
+    fish -c keys-$selected
 end

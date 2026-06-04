@@ -320,6 +320,12 @@ function __wt_kill -a root_dir worktree_dir name
         return 1
     end
 
+    cd $root_dir
+    or begin
+        echo "🚫 could not cd to project root $root_dir" >&2
+        return 1
+    end
+
     echo "Abandoning task: $name"
     git -C $root_dir worktree remove $wtdir 2>/dev/null
     or begin

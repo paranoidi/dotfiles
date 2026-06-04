@@ -1,4 +1,52 @@
 function tame-docker
+    # -----------------------------
+    # Parse arguments
+    # -----------------------------
+    set _disable 0
+    for arg in $argv
+        switch $arg
+            case --disable
+                set _disable 1
+            case --enable
+                set _disable 0
+        end
+    end
+
+    # -----------------------------
+    # DISABLE: remove resource constraints
+    # -----------------------------
+    if test $_disable = 1
+        echo "🔓 Untaming Docker"
+
+        set current_cpu (systemctl show system.slice -p CPUQuota | string split "=")[2]
+        if test "$current_cpu" = "" -o "$current_cpu" = "0"
+            echo "CPUQuota already unset"
+        else
+            echo "Removing CPUQuota from system.slice"
+            sudo systemctl set-property system.slice CPUQuota=
+        end
+
+        set current_io (systemctl show system.slice -p IOWeight | string split "=")[2]
+        if test "$current_io" = "" -o "$current_io" = "100"
+            echo "IOWeight already default"
+        else
+            echo "Resetting IOWeight to default on system.slice"
+            sudo systemctl set-property system.slice IOWeight=100
+        end
+
+        echo "🔍 Verification"
+        echo -n "CPUQuota: "
+        systemctl show system.slice -p CPUQuota
+        echo -n "IOWeight: "
+        systemctl show system.slice -p IOWeight
+
+        echo "💧 Done"
+        return
+    end
+
+    # -----------------------------
+    # ENABLE (default)
+    # -----------------------------
     echo "🔥 Docker taming"
 
     # -----------------------------
