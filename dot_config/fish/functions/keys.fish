@@ -6,6 +6,7 @@ function keys --description "🔑 Browse keyboard shortcuts with fzf"
     set -l selected (
         printf "%s\n" $sections |
         fzf-tmux \
+            -p 90%,80% \
             --ansi \
             --prompt="keys> " \
             --preview=$preview_cmd \
