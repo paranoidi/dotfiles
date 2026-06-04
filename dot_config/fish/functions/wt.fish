@@ -31,14 +31,14 @@ function wt --description "🌳 Git work-tree task manager"
     # Shorthand: wt <name> [base-branch] → start
     if begin
             test -n "$cmd"
-            and not contains -- $cmd start list ls status done d kill open reattach clean help
+            and not contains -- $cmd start s list ls status done d kill open reattach clean help
         end
         __wt_start $root_dir $worktree_dir $cmd $argv
         return
     end
 
     switch "$cmd"
-        case start
+        case start s
             __wt_start $root_dir $worktree_dir $argv
         case list ls
             git -C $root_dir worktree list --verbose
@@ -69,18 +69,18 @@ function wt --description "🌳 Git work-tree task manager"
         case clean
             __wt_clean $root_dir $worktree_dir
         case '' help
-            echo "Usage: wt <name> [base-branch]  |  wt <command> [args]"
+            echo "Usage: wt <name> [base-branch] | wt <command> [args]"
             echo ""
-            echo "  <name> [branch]     Create task worktree (same as start); names matching a command (list, done, d, …) need: wt start <name>"
+            echo "  <name> [branch]            Create task worktree (same as start); branch defaults to current branch"
             echo ""
             echo "Commands:"
-            echo "  start <name>        Create worktree and cd into it"
-            echo "  list | ls           List git worktrees"
-            echo "  status              Branch, dirty files, and sync vs origin for each task worktree"
-            echo "  done | d [name]     Merge into main and remove task worktree; no name outside worktree → fzf (single)"
-            echo "  kill [name]         Abandon worktree(s); no name + fzf → multi-select interactively"
-            echo "  open [name]         cd into existing task worktree"
-            echo "  clean               Remove ALL worktrees (interactive)"
+            echo "  start | s <name> [branch]  Create worktree from branch (default: current branch)"
+            echo "  list | ls                  List git worktrees"
+            echo "  status                     Branch, dirty files, and sync vs origin for each task worktree"
+            echo "  done | d [name]            Merge into main and remove task worktree; no name outside worktree → fzf (single)"
+            echo "  kill [name]                Abandon worktree(s); no name + fzf → multi-select interactively"
+            echo "  open [name]                cd into existing task worktree"
+            echo "  clean                      Remove ALL worktrees (interactive)"
             echo ""
             echo "Configuration (set before calling wt):"
             echo "  set -gx WT_ROOT         Project root (default: auto-detect)"
@@ -108,7 +108,10 @@ end
 function __wt_start -a root_dir worktree_dir args
     set -l name $args[1]
     set -l base_branch $args[2]
-    test -z "$base_branch"; and set base_branch main
+    if test -z "$base_branch"
+        set base_branch (git -C $root_dir rev-parse --abbrev-ref HEAD 2>/dev/null)
+        test -z "$base_branch"; and set base_branch main
+    end
 
     if test -z "$name"
         echo "usage: wt start <name> [base-branch]" >&2
@@ -140,7 +143,8 @@ function __wt_start -a root_dir worktree_dir args
 
     echo "🏆 Worktree created: $name (branch: $task_branch)"
     cd $wtdir
-    pi
+    set -l agent (set -q DEFAULT_AGENT; and echo $DEFAULT_AGENT; or echo pi)
+    $agent
 end
 
 # ── wt status ─────────────────────────────────────────────────────────
