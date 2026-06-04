@@ -1,4 +1,6 @@
 function dailymaintenance
+    argparse 'f/force' -- $argv
+
     set -l cache_dir ~/.cache/fish
     set -l timestamp_file $cache_dir/last_daily_run
 
@@ -9,7 +11,9 @@ function dailymaintenance
     set -l current_time (date +%s)
     set -l should_run false
 
-    if test -f $timestamp_file
+    if set -q _flag_force
+        set should_run true
+    else if test -f $timestamp_file
         set -l last_run (string trim -- (command cat $timestamp_file))
 
         if test (count $last_run) -eq 1; and string match -qr '^[0-9]+$' -- $last_run
