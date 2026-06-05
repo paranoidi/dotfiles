@@ -105,9 +105,9 @@ function __wt_infer_name -a worktree_dir
 end
 
 # ── wt start <name> [base-branch] ─────────────────────────────────────
-function __wt_start -a root_dir worktree_dir args
-    set -l name $args[1]
-    set -l base_branch $args[2]
+function __wt_start -a root_dir worktree_dir
+    set -l name $argv[3]
+    set -l base_branch $argv[4]
     if test -z "$base_branch"
         set base_branch (git -C $root_dir rev-parse --abbrev-ref HEAD 2>/dev/null)
         test -z "$base_branch"; and set base_branch main
@@ -144,7 +144,11 @@ function __wt_start -a root_dir worktree_dir args
     echo "🏆 Worktree created: $name (branch: $task_branch)"
     cd $wtdir
     set -l agent (set -q DEFAULT_AGENT; and echo $DEFAULT_AGENT; or echo pi)
-    $agent
+    if type -q gum
+        gum confirm "🤖 Launch agent ($agent)?" --default=yes; and $agent
+    else
+        $agent
+    end
 end
 
 # ── wt status ─────────────────────────────────────────────────────────
