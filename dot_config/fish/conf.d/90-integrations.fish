@@ -10,5 +10,5 @@ end
 
 # Enable amoxide
 if type -q am
-    am init fish | source
+    am init fish | string replace --all 'am sync fish | source' 'am sync --quiet fish | source' | source
 end
