@@ -347,15 +347,16 @@ function cz
         echo "cz - chezmoi workflow helper"
         echo ""
         echo "Commands:"
-        echo -e "  cz \e[1mu\e[0mpdate       → Pull latest state + apply to \$HOME"
-        echo -e "  cz \e[1ma\e[0mdd [file]   → Add all local changes into chezmoi (excl. templates) or given file"
-        echo -e "  cz \e[1ms\e[0mtatus       → Show status diff"
-        echo -e "  cz \e[1md\e[0miff         → Show detailed diff"
-        echo -e "  cz \e[1mr\e[0mecord [msg] → Add all changes + git commit [message]"
-        echo -e "  cz \e[1mp\e[0mush         → Push commits to remote"
-        echo -e "  cz \e[1mf\e[0mull [msg]   → Full sync cycle [message]"
-        echo -e "  cz \e[1mc\e[0mlean        → Offer to remove deleted files (git deletes; renames not covered)"
-        echo -e "  cz \e[1mg\e[0mit          → cd into chezmoi source directory"
+        echo -e "  cz \e[1mu\e[0mpdate           → Pull latest state + apply to \$HOME"
+        echo -e "  cz \e[1ma\e[0mdd [file]       → Add all local changes into chezmoi (excl. templates) or given file"
+        echo -e "  cz \e[1mb\e[0macktrack <file> → Restore file to chezmoi-managed state (discard local changes)"
+        echo -e "  cz \e[1ms\e[0mtatus           → Show status diff"
+        echo -e "  cz \e[1md\e[0miff             → Show detailed diff"
+        echo -e "  cz \e[1mr\e[0mecord [msg]     → Add all changes + git commit [message]"
+        echo -e "  cz \e[1mp\e[0mush             → Push commits to remote"
+        echo -e "  cz \e[1mf\e[0mull [msg]       → Full sync cycle [message]"
+        echo -e "  cz \e[1mc\e[0mlean            → Offer to remove deleted files (git deletes; renames not covered)"
+        echo -e "  cz \e[1mg\e[0mit              → cd into chezmoi source directory"
         return 0
 
     # ------------------------------------------------------------
@@ -411,6 +412,22 @@ function cz
         end
 
         echo "🏆 Add complete"
+        return 0
+
+    # ------------------------------------------------------------
+    # BACKTRACK (repo → home, single file)
+    # ------------------------------------------------------------
+    case backtrack b
+        set file $argv[2]
+
+        if test -z "$file"
+            echo "Usage: cz backtrack <file>"
+            return 1
+        end
+
+        echo "⏪ cz backtrack — restoring $file"
+        chezmoi apply "$file"
+        echo "🏆 Restored"
         return 0
 
     # ------------------------------------------------------------
