@@ -22,6 +22,17 @@ function __cz_status_without_template_sources
         # Chezmoi uses " R" for run-on-apply scripts; avoid confusion with Removed.
         if string match -rq '^ R' -- "$line"
             echo (string replace -r '^ R' '🚀' -- "$line")
+        else if string match -rq '^ M' -- "$line"
+            # Filter out false-positive " M" entries where the file content
+            # is actually identical but chezmoi flags it (e.g. execute-bit
+            # mismatches between source and destination, or files restored
+            # to identical content). Only show if there's a real diff.
+            # Mode-only diffs (execute-bit changes) produce header lines but no
+            # content hunks. Check for actual content changes by looking for @@ hunk headers.
+            if not chezmoi diff --reverse --exclude=scripts "$HOME/$target_path" 2>/dev/null | string match -rq '@@'
+                continue
+            end
+            echo "$line"
         else
             echo "$line"
         end
