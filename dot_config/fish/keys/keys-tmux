@@ -17,6 +17,6 @@ Clear terminal and buffer |  l                (l is standard in shell)
 Scroll up                 |  Ctrl-PgUp
 Scroll down               |  Ctrl-PgDown
 Previous window           |  Ctrl-a twice
-Send Ctrl-a when nested   |  Ctrl-q
+Send Ctrl-a when nested   |  a
 Install tmux plugins      |  I                (I for install)
 Uninstall plugins         |  alt-u            (u for uninstall)
