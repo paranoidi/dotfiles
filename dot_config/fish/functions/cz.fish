@@ -58,14 +58,14 @@ function __cz_git_repo_summary
 
     # Branch info
     set -l branch (git -C "$sd" rev-parse --abbrev-ref HEAD 2>/dev/null)
-    printf "🔀 chezmoi git [%s]" "$branch"
+    #printf "🔀 chezmoi git [%s]" "$branch"
 
     # Ahead/behind
     if git -C "$sd" rev-parse --abbrev-ref @{upstream} >/dev/null 2>&1
         set -l ahead (git -C "$sd" rev-list --count @{upstream}..HEAD 2>/dev/null)
         set -l behind (git -C "$sd" rev-list --count HEAD..@{upstream} 2>/dev/null)
         if test "$ahead" -gt 0; or test "$behind" -gt 0
-            printf "  %s↑ %s↓" "$ahead" "$behind"
+            printf "🔀 git %s↑ %s↓" "$ahead" "$behind"
         end
     end
     echo ""
@@ -112,7 +112,6 @@ function __cz_git_repo_summary
     end
 
     if test $has_any -eq 0
-        echo "✓ clean"
         return 2
     end
 
