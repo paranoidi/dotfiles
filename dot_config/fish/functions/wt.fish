@@ -64,8 +64,11 @@ function wt --description "🌳 Git work-tree task manager"
             end
         case open reattach
             set -l tn $argv[1]
-            test -z "$tn"; and set tn (__wt_infer_name $worktree_dir)
-            __wt_open $root_dir $worktree_dir $tn
+            if test -n "$tn"
+                __wt_open $root_dir $worktree_dir $tn
+            else
+                __wt_open_interactive $root_dir $worktree_dir
+            end
         case clean
             __wt_clean $root_dir $worktree_dir
         case '' help
@@ -79,7 +82,7 @@ function wt --description "🌳 Git work-tree task manager"
             echo "  status                     Branch, dirty files, and sync vs origin for each task worktree"
             echo "  done | d [name]            Merge into main and remove task worktree; no name outside worktree → fzf (single)"
             echo "  kill [name]                Abandon worktree(s); no name + fzf → multi-select interactively"
-            echo "  open [name]                cd into existing task worktree"
+            echo "  open [name]                cd into existing task worktree; no name outside worktree → fzf (single)"
             echo "  clean                      Remove ALL worktrees (interactive)"
             echo ""
             echo "Configuration (set before calling wt):"
@@ -141,7 +144,10 @@ function __wt_start -a root_dir worktree_dir
     echo "💾 Creating worktree '$name'..."
     git -C $root_dir worktree add "$wtdir" "$task_branch"
 
-    echo "🏆 Worktree created: $name (branch: $task_branch)"
+    # Persist the base branch so `wt done` merges back to the right place
+    echo $base_branch > "$wtdir/.wt-base"
+
+    echo "🏆 Worktree created: $name (branch: $task_branch, base: $base_branch)"
     cd $wtdir
     set -l agent (set -q DEFAULT_AGENT; and echo $DEFAULT_AGENT; or echo pi)
     if type -q gum
@@ -219,24 +225,45 @@ function __wt_done -a root_dir worktree_dir name
 
     echo "=== Finishing task: $name ==="
 
-    # 1. Merge from primary repo ($root_dir). `main` is often checked out only there; a task
-    #    worktree cannot `checkout main` in that case, which used to yield a false “Already up to date”.
-    echo "--- Merging ---"
+    # 1. Detect the integration branch: stored metadata → remote HEAD → main → master
+    set -l target_branch
+    if test -f "$wtdir/.wt-base"
+        set target_branch (string trim < "$wtdir/.wt-base")
+    end
+    if test -z "$target_branch"
+        set target_branch (git -C $root_dir symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | string replace 'refs/remotes/origin/' '')
+    end
+    if test -z "$target_branch"
+        for cand in main master
+            if git -C $root_dir rev-parse --verify $cand &>/dev/null
+                set target_branch $cand
+                break
+            end
+        end
+    end
+    if test -z "$target_branch"
+        echo "🚫 could not determine target branch — create worktree with 'wt start' or set .wt-base manually" >&2
+        return 1
+    end
+
+    # 2. Merge from primary repo ($root_dir). The integration branch is often checked out only
+    #    there; a task worktree cannot check it out, which used to yield a false "Already up to date".
+    echo "--- Merging into $target_branch ---"
     set -l task_branch "task/$name"
-    git -C $root_dir fetch origin main 2>/dev/null; or echo "  (no remote / fetch skipped)"
-    git -C $root_dir checkout main
+    git -C $root_dir fetch origin $target_branch 2>/dev/null; or echo "  (no remote / fetch skipped)"
+    git -C $root_dir checkout $target_branch
     if test $status -ne 0
-        echo "🚫 could not checkout main in $root_dir (resolve repo state and retry)" >&2
+        echo "🚫 could not checkout $target_branch in $root_dir (resolve repo state and retry)" >&2
         return 1
     end
-    git -C $root_dir pull origin main 2>/dev/null; or echo "  (no remote / pull skipped)"
-    git -C $root_dir merge $task_branch --no-edit
+    git -C $root_dir pull origin $target_branch 2>/dev/null; or echo "  (no remote / pull skipped)"
+    git -C $root_dir merge $task_branch --no-edit --no-verify
     if test $status -ne 0
-        echo "🚫 merge $task_branch into main failed — fix conflicts in $root_dir, then run: wt done $name" >&2
+        echo "🚫 merge $task_branch into $target_branch failed — fix conflicts in $root_dir, then run: wt done $name" >&2
         return 1
     end
-    git -C $root_dir push origin main 2>/dev/null; or echo "  (no remote / push skipped)"
-    echo "  merged $task_branch -> main"
+    git -C $root_dir push origin $target_branch 2>/dev/null; or echo "  (no remote / push skipped)"
+    echo "  merged $task_branch -> $target_branch"
 
     # 2. Cleanup — remove worktree first so task_branch is no longer checked out, then delete branch ref
     echo "--- Removing worktree ---"
@@ -248,7 +275,7 @@ function __wt_done -a root_dir worktree_dir name
     git -C $root_dir push origin --delete $task_branch 2>/dev/null; or true
 
     echo ""
-    echo "🏆 Done: $name -- merged to main"
+    echo "🏆 Done: $name -- merged to $target_branch"
 end
 
 # ── wt done (no args, not under worktree: fzf single-select) ────────
@@ -340,6 +367,35 @@ function __wt_kill -a root_dir worktree_dir name
     git -C $root_dir branch -D "task/$name" 2>/dev/null; or true
     git -C $root_dir push origin --delete "task/$name" 2>/dev/null; or true
     echo "☠️ Abandoned: $name"
+end
+
+# ── wt open (no args, fzf single-select) ─────────────────────────────
+function __wt_open_interactive -a root_dir worktree_dir
+    if not type -q fzf
+        echo "🚫 wt open with no task name (outside a task worktree) requires fzf (install: https://github.com/junegunn/fzf)" >&2
+        return 1
+    end
+
+    set -l names
+    for entry in $worktree_dir/*/
+        test -d "$entry"; or continue
+        set -l n (basename $entry)
+        test -n "$n"; or continue
+        set names $names $n
+    end
+    if test (count $names) -eq 0
+        echo "🚫 no task worktrees under $worktree_dir" >&2
+        return 1
+    end
+
+    set -l picked (printf '%s\n' $names | sort | fzf \
+        --header='Task to open — pick one (enter confirms, esc cancels):' \
+        --prompt='open> ')
+    if test $status -ne 0
+        return 1
+    end
+    test -n "$picked"; or return 1
+    __wt_open $root_dir $worktree_dir $picked
 end
 
 # ── wt open <name> ────────────────────────────────────────────────────
