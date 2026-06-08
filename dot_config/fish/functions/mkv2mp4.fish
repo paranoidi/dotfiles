@@ -1,11 +1,11 @@
-function to_mp4 --description "🎬 Convert mkv to mp4"
+function mkv2mp4 --description "🎬 Convert mkv to mp4"
     if not command -q ffmpeg
         echo "❌ ffmpeg is required but not installed or not in PATH" >&2
         return 127
     end
 
     if test (count $argv) -eq 0
-        echo "Usage: to_mp4 <filename>"
+        echo "Usage: mkv2mp4 <filename>"
         return 1
     end
 
