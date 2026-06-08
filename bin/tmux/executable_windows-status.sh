@@ -18,12 +18,13 @@ command_icon() {
     local cmd="$1"
     case "$cmd" in
         fish)                   printf '🐟' ;;
-        bash)                   printf '💩' ;;
+        bash)                   printf '😼' ;;
         python3|python|uv|pip)  printf '🐍' ;;
         hermes)                 printf '🧠' ;;
         ruby)                   printf '💎' ;;
         perl)                   printf '🐪' ;;
         git)                    printf '🔀' ;;
+        task)                   printf '📝' ;;
         find|ag|rg)             printf '🔍' ;;
         sleep)                  printf '🕓' ;;
         docker)                 printf '📦' ;;
@@ -33,7 +34,7 @@ command_icon() {
         curl|wget|gh)           printf '🌐' ;;
         eza|mc|pc)              printf '🗂️' ;;
         vi)                     printf '✏️' ;;
-        rm)                     printf '☠️ ' ;;
+        rm)                     printf '💀' ;;
         du)                     printf '📊' ;;
         pi|llm|aichat|copilot)  printf '🧠' ;;
         bat|less)               printf '📃' ;;
