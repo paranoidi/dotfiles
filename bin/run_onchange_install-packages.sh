@@ -313,6 +313,113 @@ install_tv() {
     echo "✅ tv ${ver} installed"
 }
 
+install_helix() {
+    if ! _want_install_cmd hx; then
+        echo "✅ helix"
+        return 0
+    fi
+
+    local REPO="helix-editor/helix"
+    local m os release_json ver
+    m="$(uname -m)"
+    os="$(uname -s)"
+
+    local auth=()
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+        auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+    elif [[ -n "${GH_TOKEN:-}" ]]; then
+        auth=(-H "Authorization: Bearer ${GH_TOKEN}")
+    fi
+
+    release_json=$(curl -fsSL \
+        -H "Accept: application/vnd.github+json" \
+        -H "User-Agent: run_onchange-install-packages" \
+        "${auth[@]}" \
+        "https://api.github.com/repos/${REPO}/releases/latest")
+
+    ver=$(printf '%s' "$release_json" | jq -r '.tag_name')
+    if [[ -z "$ver" || "$ver" == "null" ]]; then
+        echo "❌ Failed to resolve helix release (GitHub API)." >&2
+        return 1
+    fi
+
+    echo "🌐 Installing helix ${ver}..."
+
+    # On x86_64 Debian/Ubuntu, prefer the official .deb package.
+    if [[ "$os" == Linux ]] && command -v apt-get >/dev/null 2>&1 \
+       && [[ -f /etc/debian_version ]] && [[ "$m" == "x86_64" ]]; then
+        local deb_file deb_url deb_path
+        deb_file=$(printf '%s' "$release_json" | jq -r \
+            '.assets[] | select(.name | endswith("_amd64.deb")) | .name' | head -n1)
+        deb_url=$(printf '%s' "$release_json" | jq -r \
+            '.assets[] | select(.name | endswith("_amd64.deb")) | .browser_download_url' | head -n1)
+        if [[ -n "$deb_file" && -n "$deb_url" ]]; then
+            deb_path=$(mktemp /tmp/helix-XXXXXX.deb)
+            echo "⬇️  Downloading ${deb_file}..."
+            if curl -fsSL -o "$deb_path" "$deb_url" \
+               && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                  -qq -o Dpkg::Use-Pty=0 "$deb_path"; then
+                rm -f "$deb_path"
+                echo "✅ helix ${ver} installed"
+                return 0
+            fi
+            rm -f "$deb_path"
+            echo "⚠️  .deb install failed, falling back to tarball..." >&2
+        fi
+    fi
+
+    # Tarball install — covers aarch64 (Raspberry Pi 4/5 with 64-bit OS) and x86_64 fallback.
+    # 32-bit ARM (armv7l / armv6l / armv5tel) has no upstream prebuilt binary.
+    local asset_suffix
+    case "${os}-${m}" in
+        Linux-x86_64|Linux-amd64)
+            asset_suffix="x86_64-linux.tar.xz" ;;
+        Linux-aarch64|Linux-arm64)
+            asset_suffix="aarch64-linux.tar.xz" ;;
+        Linux-armv7l|Linux-armv6l|Linux-armv5*)
+            echo "❌ No prebuilt helix binary for 32-bit ARM (${m})." >&2
+            echo "ℹ️  Use 64-bit Raspberry Pi OS (aarch64) for prebuilt binaries." >&2
+            echo "ℹ️  Or build from source: https://github.com/${REPO}" >&2
+            return 1
+            ;;
+        *)
+            echo "❌ Unsupported OS/arch for helix: ${os} (${m})" >&2
+            return 1
+            ;;
+    esac
+
+    local asset_name="helix-${ver}-${asset_suffix}"
+    local asset_url
+    asset_url=$(printf '%s' "$release_json" | jq -r --arg name "$asset_name" \
+        '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
+    if [[ -z "$asset_url" ]]; then
+        echo "❌ No release asset named ${asset_name}" >&2
+        return 1
+    fi
+
+    # Install to /usr/local/lib/helix/ so the binary finds its runtime directory
+    # alongside it (helix resolves runtime relative to its own real path).
+    local install_dir="/usr/local/lib/helix"
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    echo "⬇️  Downloading ${asset_name}..."
+    if ! curl --progress-bar -L -o "${tmpdir}/${asset_name}" "$asset_url"; then
+        rm -rf "$tmpdir"
+        return 1
+    fi
+    tar -xJf "${tmpdir}/${asset_name}" -C "$tmpdir"
+
+    local extracted_dir="${tmpdir}/helix-${ver}-${asset_suffix%.tar.xz}"
+    sudo rm -rf "$install_dir"
+    sudo mv "$extracted_dir" "$install_dir"
+    sudo chmod +x "${install_dir}/hx"
+    sudo ln -sf "${install_dir}/hx" /usr/local/bin/hx
+
+    rm -rf "$tmpdir"
+    echo "✅ helix ${ver} installed (runtime: ${install_dir}/runtime)"
+}
+
 install_amoxide() {
     if [[ "${INSTALL_FORCE:-0}" != 1 ]] && [[ -x "$HOME/.cargo/bin/am" ]]; then
         echo "✅ amoxide"
@@ -653,6 +760,7 @@ main() {
     install_starship
     install_eza
     install_tv
+    install_helix
     install_amoxide
     install_go
     install_go_packages
