@@ -115,10 +115,32 @@ function enable-personal-repo --description 'Enable personal GitHub SSH remote f
         return 1
     end
 
+    if not grep -q -- '-----BEGIN.*PRIVATE KEY' "$key_path" 2>/dev/null
+        echo "⚠️  Warning: $key_path may not be a valid SSH private key."
+    end
+
     mkdir -p (dirname "$ssh_config")
     touch "$ssh_config"
 
-    if not string match --quiet --regex "^Host\\s+$alias\$" < "$ssh_config"
+    set --local escaped_alias (string escape --style=regex -- "$alias")
+    set --local block_exists 0
+    set --local block_key ""
+    set --local in_target_block 0
+
+    while read -l config_line
+        if string match --quiet --regex "^Host\\s+$escaped_alias\$" -- "$config_line"
+            set in_target_block 1
+            set block_exists 1
+        else if test $in_target_block -eq 1
+            if string match --quiet --regex '^Host\s' -- "$config_line"
+                set in_target_block 0
+            else if string match --quiet --regex '^\s*IdentityFile\s' -- "$config_line"
+                set block_key (string replace --regex '^\s*IdentityFile\s+' '' -- "$config_line")
+            end
+        end
+    end < "$ssh_config"
+
+    if test $block_exists -eq 0
         begin
             echo ''
             echo "Host $alias"
@@ -127,8 +149,12 @@ function enable-personal-repo --description 'Enable personal GitHub SSH remote f
             echo "  IdentityFile $key_path"
             echo '  IdentitiesOnly yes'
         end >> "$ssh_config"
+    else if test "$block_key" != "$key_path"
+        echo "Updating IdentityFile for '$alias' from: $block_key"
+        echo "                                      to: $key_path"
+        sed -i -E "/^Host[[:space:]]+$alias$/,/^Host[[:space:]]/ s|^([[:space:]]*IdentityFile[[:space:]]+).*|\1$key_path|" "$ssh_config"
     else
-        echo "SSH alias '$alias' already exists in config (not modifying)."
+        echo "SSH alias '$alias' already exists in config with correct key."
     end
 
     set --local new_url "git@$alias:$owner/$repo.git"
