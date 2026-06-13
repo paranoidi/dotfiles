@@ -33,7 +33,8 @@ command_icon() {
         ssh|scp)                printf '📡' ;;
         curl|wget|gh)           printf '🌐' ;;
         eza|mc|pc)              printf '🗂️' ;;
-        vi)                     printf '✏️' ;;
+        vi|nvim)                printf '✏️' ;;
+        hx)                     printf '🧬' ;;
         rm)                     printf '💀' ;;
         du)                     printf '📊' ;;
         pi|llm|aichat|copilot)  printf '🧠' ;;

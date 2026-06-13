@@ -1,1 +1,4 @@
-theme = "jetbrains_dark"
+theme = "jetbrains_dark_fixed"
+
+[editor]
+line-number = "relative"

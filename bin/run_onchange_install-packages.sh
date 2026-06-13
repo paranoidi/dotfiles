@@ -82,7 +82,7 @@ _apt_pkg_is_installed() {
 
 # When INSTALL_FORCE=1, always run installers; otherwise only if the command is missing.
 _want_install_cmd() {
-    [[ "${INSTALL_FORCE:-0}" == 1 ]] && return 0
+    [[ "${INSTALL_FORCE:-0}" == 1 || "${UPDATE_ONLY:-0}" == 1 ]] && return 0
     ! command -v "$1" >/dev/null 2>&1
 }
 
@@ -234,6 +234,11 @@ install_starship() {
 install_eza() {
     if ! _want_install_cmd eza; then
         echo "✅ Eza"
+        return 0
+    fi
+    # In update mode, skip apt-repo-based installs — apt upgrade handles them.
+    if [[ "${UPDATE_ONLY:-0}" == 1 ]]; then
+        echo "✅ Eza (apt upgrade handles updates)"
         return 0
     fi
     echo "🔧 Adding eza repository ..."
@@ -689,6 +694,11 @@ install_task() {
         echo "✅ task (taskfile.dev)"
         return 0
     fi
+    # In update mode, skip apt-repo-based installs — apt upgrade handles them.
+    if [[ "${UPDATE_ONLY:-0}" == 1 ]]; then
+        echo "✅ task (apt upgrade handles updates)"
+        return 0
+    fi
     echo "🔧 Adding taskfile.dev (Cloudsmith) repository..."
     curl -1sLf 'https://dl.cloudsmith.io/public/task/task/setup.deb.sh' | sudo -E bash >/dev/null 2>&1
     _run_apt install -y -qq task
@@ -734,28 +744,37 @@ change_shell_to_fish() {
 main() {
     echo "🛠️ Install packages ..."
     INSTALL_FORCE=0
+    UPDATE_ONLY=0
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --force)
                 INSTALL_FORCE=1
                 shift
                 ;;
+            --update)
+                UPDATE_ONLY=1
+                shift
+                ;;
             -h|--help)
-                echo "Usage: ${0##*/} [--force] [--help]"
-                echo "  --force  Run all installers even when packages/commands already exist"
+                echo "Usage: ${0##*/} [--force] [--update] [--help]"
+                echo "  --force   Re-run all installers (including apt)"
+                echo "  --update  Re-run non-apt installers only (for periodic updates)"
                 exit 0
                 ;;
             *)
                 echo "Unknown option: $1" >&2
-                echo "Usage: ${0##*/} [--force] [--help]" >&2
+                echo "Usage: ${0##*/} [--force] [--update] [--help]" >&2
                 exit 1
                 ;;
         esac
     done
     export INSTALL_FORCE
+    export UPDATE_ONLY
 
-    install_apt_packages
-    ensure_fd_symlink
+    if [[ "$UPDATE_ONLY" == 0 ]]; then
+        install_apt_packages
+        ensure_fd_symlink
+    fi
     install_uv
     install_uv_tools
     install_fzf

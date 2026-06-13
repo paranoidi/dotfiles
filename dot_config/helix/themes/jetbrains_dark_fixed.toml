@@ -1,0 +1,11 @@
+inherits = "jetbrains_dark"
+
+# Fix cursor visibility: cursor was invisible during selections
+# Set cursor as a distinct background block (light grey) so it's always
+# visible against the selection bg (#214283) and other dark backgrounds
+"ui.cursor" = { fg = "black", bg = "#e0e0e0" }
+"ui.cursor.select" = { fg = "black", bg = "#e0e0e0" }
+"ui.cursor.insert" = { fg = "black", bg = "#e0e0e0" }
+"ui.cursor.primary.select" = { fg = "black", bg = "#e0e0e0" }
+"ui.cursor.primary.insert" = { fg = "black", bg = "#e0e0e0" }
+"ui.cursor.match" = { fg = "black", bg = "#e0e0e0", modifiers = ["bold"] }
