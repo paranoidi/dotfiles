@@ -1,0 +1,289 @@
+#!/usr/bin/env bash
+# snapshot-home — Set up, tear down, and take Btrfs snapshots of /home
+set -euo pipefail
+
+SELF="$(basename "$0")"
+SELF_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+SELF_ABS="$SELF_DIR/$SELF"
+
+HELPER=/usr/local/sbin/home-snapshot
+SERVICE=/etc/systemd/system/home-snapshot.service
+SNAPDIR=/home/.snapshots
+
+# ── Emoji helpers ──────────────────────────────────────────────────────────
+ok()    { echo "✅ $*"; }
+info()  { echo "ℹ️  $*"; }
+warn()  { echo "⚠️  $*"; }
+err()   { echo "❌ $*" >&2; }
+header(){ echo; echo "🔧 $*"; }
+sub()   { echo "  📦 $*"; }
+arrow() { echo "  ➜ $*"; }
+rocket(){ echo "🚀 $*"; }
+memo()  { echo "📝 $*"; }
+check() { echo "🔍 $*"; }
+guard() { echo "🛡️  $*"; }
+clean() { echo "🧹 $*"; }
+done_clean(){ echo "✨ $*"; }
+dir()   { echo "📁 $*"; }
+star()  { echo "🌟 $*"; }
+
+# ── Detection ──────────────────────────────────────────────────────────────
+is_installed() { [[ -f "$HELPER" ]] && [[ -f "$SERVICE" ]]; }
+
+# ── Elevation ──────────────────────────────────────────────────────────────
+ensure_root() {
+  if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+    exec sudo -- "$SELF_DIR/$SELF" "$@"
+  fi
+}
+
+# ── Requirements ───────────────────────────────────────────────────────────
+need() {
+  command -v "$1" >/dev/null 2>&1 || {
+    err "Required command not found: $1"
+    exit 1
+  }
+}
+
+check_btrfs() {
+  header "Checking /home"
+  check "filesystem type…"
+  fstype="$(findmnt -n -o FSTYPE /home || true)"
+  if [[ "$fstype" != "btrfs" ]]; then
+    err "/home is not mounted as btrfs (current: ${fstype:-unknown})"
+    exit 1
+  fi
+  ok "/home is btrfs"
+
+  check "btrfs subvolume…"
+  if ! btrfs subvolume show /home >/dev/null 2>&1; then
+    err "/home is not a Btrfs subvolume"
+    info "/home must be its own subvolume for this setup."
+    exit 1
+  fi
+  ok "/home is a Btrfs subvolume"
+}
+
+# ── Snapshot action ────────────────────────────────────────────────────────
+do_snapshot() {
+  if ! is_installed; then
+    err "Snapshot system is not installed."
+    echo "  Run \`$SELF --install\` first to set it up."
+    exit 1
+  fi
+
+  rocket "Taking a manual snapshot…"
+  exec sudo "$HELPER" "manual-"
+}
+
+# ── Install ────────────────────────────────────────────────────────────────
+do_install() {
+  ensure_root "$@"
+  need btrfs
+  need findmnt
+  need systemctl
+  need flock
+  need find
+  need grep
+  need sort
+
+  check_btrfs
+
+  # Snapshot directory
+  header "Snapshot directory"
+  if [[ -e "$SNAPDIR" ]]; then
+    if [[ ! -d "$SNAPDIR" ]]; then
+      err "$SNAPDIR exists but is not a directory"
+      exit 1
+    fi
+    snapdir_fstype="$(findmnt -n -T "$SNAPDIR" -o FSTYPE || true)"
+    if [[ "$snapdir_fstype" != "btrfs" ]]; then
+      err "$SNAPDIR is not on a Btrfs filesystem"
+      exit 1
+    fi
+    ok "Using existing $SNAPDIR"
+  else
+    sub "Creating $SNAPDIR…"
+    install -d -m 755 "$SNAPDIR"
+    ok "Created $SNAPDIR"
+  fi
+
+  # Helper script
+  header "Helper script"
+  sub "Installing to $HELPER…"
+  install -d -m 755 /usr/local/sbin
+  cat > "$HELPER" <<'HELPEREOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+SNAPDIR=/home/.snapshots
+KEEP=30
+LOCK=/run/home-snapshot.lock
+
+BTRFS="$(command -v btrfs)"
+FLOCK="$(command -v flock)"
+
+PREFIX="${1:-boot-}"
+STAMP="$(date +%Y-%m-%d-%H%M%S)"
+NAME="${PREFIX}${STAMP}"
+
+install -d -m 755 "$SNAPDIR"
+
+exec 9>"$LOCK"
+"$FLOCK" -n 9 || exit 0
+
+"$BTRFS" subvolume snapshot -r /home "$SNAPDIR/$NAME"
+
+mapfile -t snaps < <(
+  find "$SNAPDIR" -mindepth 1 -maxdepth 1 -printf '%f\n' \
+    | sort || true
+)
+
+excess=$((${#snaps[@]} - KEEP))
+if (( excess > 0 )); then
+  for old in "${snaps[@]:0:excess}"; do
+    "$BTRFS" subvolume delete "$SNAPDIR/$old"
+  done
+fi
+HELPEREOF
+  chown root:root "$HELPER"
+  chmod 755 "$HELPER"
+  ok "Helper installed"
+
+  # Systemd unit
+  header "Systemd service"
+  sub "Installing $SERVICE…"
+  cat > "$SERVICE" <<'SERVICEEOF'
+[Unit]
+Description=Create read-only Btrfs snapshot of /home at boot
+DefaultDependencies=no
+After=local-fs.target
+Before=systemd-user-sessions.service
+ConditionPathIsDirectory=/home
+ConditionPathIsDirectory=/home/.snapshots
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/home-snapshot
+
+[Install]
+WantedBy=multi-user.target
+SERVICEEOF
+  systemctl daemon-reload
+  systemctl enable home-snapshot.service
+  ok "Systemd service enabled (runs at boot)"
+
+  # Sudoers drop-in
+  header "Passwordless execution"
+  INSTALL_USER="${SUDO_USER:-$(id -un)}"
+  SUDOERS_FILE=/etc/sudoers.d/home-snapshot
+  if [[ -f "$SUDOERS_FILE" ]]; then
+    guard "Backing up existing $SUDOERS_FILE → ${SUDOERS_FILE}.bak"
+    cp -a "$SUDOERS_FILE" "${SUDOERS_FILE}.bak"
+  fi
+  install -m 440 /dev/stdin "$SUDOERS_FILE" <<SUDOERSEOF
+$INSTALL_USER ALL=(root) NOPASSWD: /usr/local/sbin/home-snapshot
+SUDOERSEOF
+  ok "Sudoers rule added — no password needed for snapshots"
+
+  # User wrapper
+  USER_HOME="$(getent passwd "$INSTALL_USER" | cut -d: -f6)"
+  WRAPPER="$USER_HOME/bin/home-snapshot"
+  sub "Creating convenience wrapper at $WRAPPER…"
+  install -d -m 755 "$USER_HOME/bin" 2>/dev/null || true
+  cat > "$WRAPPER" <<WRAPPEREOF
+#!/usr/bin/env bash
+set -euo pipefail
+exec "$SELF_ABS" "\$@"
+WRAPPEREOF
+  chmod 755 "$WRAPPER"
+  ok "Wrapper created — run \`home-snapshot\` anytime"
+
+  echo
+  done_clean "All done!"
+  arrow "Take a manual snapshot now:  $SELF"
+  arrow "View snapshots:              ls -1 $SNAPDIR"
+  arrow "Boot-time snapshots run automatically via systemd"
+  info "Retention: KEEP=30 (oldest pruned first)"
+}
+
+# ── Uninstall ──────────────────────────────────────────────────────────────
+do_uninstall() {
+  ensure_root "$@"
+  SERVICE_NAME=home-snapshot.service
+
+  header "Stopping & disabling service"
+  systemctl disable --now "$SERVICE_NAME" 2>/dev/null || true
+  if [[ -f "$SERVICE" ]]; then
+    clean "Removing $SERVICE…"
+    rm -f "$SERVICE"
+  fi
+  ok "Service removed"
+
+  header "Helper script"
+  if [[ -f "$HELPER" ]]; then
+    clean "Removing $HELPER…"
+    rm -f "$HELPER"
+  fi
+  ok "Helper removed"
+
+  systemctl daemon-reload
+
+  header "Sudoers rule"
+  REMOVE_USER="${SUDO_USER:-$(id -un)}"
+  SUDOERS_FILE=/etc/sudoers.d/home-snapshot
+  if [[ -f "$SUDOERS_FILE" ]]; then
+    guard "Backing up $SUDOERS_FILE → ${SUDOERS_FILE}.bak"
+    cp -a "$SUDOERS_FILE" "${SUDOERS_FILE}.bak"
+    clean "Removing $SUDOERS_FILE…"
+    rm -f "$SUDOERS_FILE"
+    ok "Sudoers rule removed"
+  else
+    info "No sudoers rule found — nothing to remove"
+  fi
+
+  header "User wrapper"
+  USER_HOME="$(getent passwd "$REMOVE_USER" | cut -d: -f6)"
+  WRAPPER="$USER_HOME/bin/home-snapshot"
+  if [[ -f "$WRAPPER" ]]; then
+    clean "Removing $WRAPPER…"
+    rm -f "$WRAPPER"
+    ok "Wrapper removed"
+  else
+    info "No wrapper found — nothing to remove"
+  fi
+
+  echo
+  done_clean "Uninstall complete!"
+  dir "Snapshots left untouched at $SNAPDIR"
+  info "Delete manually with: sudo btrfs subvolume delete $SNAPDIR/<name>"
+}
+
+# ── Help ───────────────────────────────────────────────────────────────────
+show_help() {
+  cat <<HELPEOF
+Usage: $SELF [--install | --uninstall]
+
+  (no args)      Take a manual snapshot of /home (must be installed first)
+  --install, -i  Set up the snapshot system (btrfs check, helper, systemd, sudoers)
+  --uninstall    Remove the snapshot system (keeps existing snapshots)
+
+Examples:
+  $SELF                     # take a snapshot now
+  $SELF --install           # first-time setup
+  $SELF --uninstall         # tear it all down
+HELPEOF
+}
+
+# ── Main ───────────────────────────────────────────────────────────────────
+case "${1:-}" in
+  --install|-i)   do_install "$@";;
+  --uninstall|-u) do_uninstall "$@";;
+  -h|--help)      show_help;;
+  '')             do_snapshot;;
+  *)
+    err "Unknown option: $1"
+    memo "Run \`$SELF --help\` for usage"
+    exit 1
+    ;;
+esac
