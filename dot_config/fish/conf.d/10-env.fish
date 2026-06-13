@@ -5,9 +5,9 @@ set -g man_standout -b 222226 ffff00
 set -Ux LANG en_US.UTF-8
 set -Ux LC_ALL en_US.UTF-8
 
-set -Ux EDITOR nvim
-set -Ux VISUAL nvim
-set -Ux GIT_EDITOR nvim
+set -Ux EDITOR hx
+set -Ux VISUAL hx
+set -Ux GIT_EDITOR hx
 
 set -x EZA_THEME ~/.config/eza/theme.yml
 set -x BAT_THEME ansi

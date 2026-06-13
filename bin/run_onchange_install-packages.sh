@@ -20,6 +20,8 @@ APT_GUI_PACKAGES=(
 # Go packages installed with `go install`.
 GO_PACKAGES=(
     github.com/charmbracelet/gum@latest
+    github.com/jesseduffield/lazydocker@latest
+    github.com/jesseduffield/lazygit@latest
 )
 
 # Python tools installed with `uv tool install` after uv is available.

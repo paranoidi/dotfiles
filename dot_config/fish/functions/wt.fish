@@ -145,7 +145,7 @@ function __wt_start -a root_dir worktree_dir
     git -C $root_dir worktree add "$wtdir" "$task_branch"
 
     # Persist the base branch so `wt done` merges back to the right place
-    echo $base_branch > "$wtdir/.wt-base"
+    echo $base_branch >"$wtdir/.wt-base"
 
     echo "🏆 Worktree created: $name (branch: $task_branch, base: $base_branch)"
     cd $wtdir
@@ -366,7 +366,7 @@ function __wt_kill -a root_dir worktree_dir name
     git -C $root_dir worktree prune
     git -C $root_dir branch -D "task/$name" 2>/dev/null; or true
     git -C $root_dir push origin --delete "task/$name" 2>/dev/null; or true
-    echo "☠️ Abandoned: $name"
+    echo "💀 Abandoned: $name"
 end
 
 # ── wt open (no args, fzf single-select) ─────────────────────────────
@@ -423,7 +423,7 @@ function __wt_clean -a root_dir worktree_dir
     git -C $root_dir worktree list --verbose
     echo ""
     read -p 'echo "Type yes to proceed: "' confirm
-    test "$confirm" = "yes"; or begin
+    test "$confirm" = yes; or begin
         echo "Aborted."
         return 1
     end

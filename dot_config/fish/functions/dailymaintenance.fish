@@ -33,7 +33,7 @@ function dailymaintenance
         return
     end
 
-    echo "🛠️ Running daily maintenance tasks at "(date)
+    echo (wide_emoji "🛠️")"Running daily maintenance tasks at "(date)
 
     set -l maintenance_functions
     for function_dir in $fish_function_path

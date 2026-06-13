@@ -116,7 +116,7 @@ function enable-personal-repo --description 'Enable personal GitHub SSH remote f
     end
 
     if not grep -q -- '-----BEGIN.*PRIVATE KEY' "$key_path" 2>/dev/null
-        echo "⚠️  Warning: $key_path may not be a valid SSH private key."
+        echo (wide_emoji "⚠️")"Warning: $key_path may not be a valid SSH private key."
     end
 
     mkdir -p (dirname "$ssh_config")
