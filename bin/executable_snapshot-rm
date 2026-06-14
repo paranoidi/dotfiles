@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -e
+
+SNAPSHOT_DIR="/home/.snapshots"
+
+usage() {
+  echo "Usage: $0 [--fzf] YYYY-MM-DD-HH-MM [YYYY-MM-DD-HH-MM ...]"
+  echo "  Delete one or more btrfs snapshots."
+  echo "  --fzf  Launch fzf with multiselect to pick snapshots"
+  echo "  -h     Show this help"
+  exit 1
+}
+
+# Validate date format
+valid_date() {
+  [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}$ ]]
+}
+
+delete_snapshot() {
+  local name="$1"
+  local snap="$SNAPSHOT_DIR/$name"
+
+  if [[ ! -d "$snap" ]] || ! sudo btrfs subvolume show "$snap" &>/dev/null; then
+    echo "Skip $name — not a btrfs subvolume" >&2
+    return 1
+  fi
+
+  sudo btrfs subvolume delete "$snap"
+  echo "Deleted: $snap"
+}
+
+# --fzf mode: list snapshots, pipe to fzf, delete selected
+if [[ "$1" == "--fzf" ]]; then
+  shift
+  selected=$(ls "$SNAPSHOT_DIR" | fzf -m --prompt="Select snapshots to delete> ")
+  if [[ -z "$selected" ]]; then
+    echo "No snapshots selected."
+    exit 0
+  fi
+  # If single selection, no newlines; if multiple, newline separated
+  while IFS= read -r snap; do
+    delete_snapshot "$snap"
+  done <<< "$selected"
+  exit 0
+fi
+
+[[ "$1" == "-h" ]] && usage
+
+if [[ $# -eq 0 ]]; then
+  usage
+fi
+
+errors=0
+for arg in "$@"; do
+  if ! valid_date "$arg"; then
+    echo "Invalid date format: $arg (expected YYYY-MM-DD-HH-MM)" >&2
+    ((errors++))
+    continue
+  fi
+  delete_snapshot "$arg" || ((errors++))
+done
+
+exit $(( errors > 0 ? 1 : 0 ))
