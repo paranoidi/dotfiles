@@ -427,6 +427,93 @@ install_helix() {
     echo "✅ helix ${ver} installed (runtime: ${install_dir}/runtime)"
 }
 
+install_scooter() {
+    if ! _want_install_cmd scooter; then
+        echo "✅ scooter"
+        return 0
+    fi
+
+    local REPO="thomasschafer/scooter"
+    local m os release_json ver
+
+    m="$(uname -m)"
+    os="$(uname -s)"
+
+    local auth=()
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+        auth=(-H "Authorization: Bearer ***")
+    elif [[ -n "${GH_TOKEN:-}" ]]; then
+        auth=(-H "Authorization: Bearer ***")
+    fi
+
+    release_json=$(curl -fsSL \
+        -H "Accept: application/vnd.github+json" \
+        -H "User-Agent: run_onchange-install-packages" \
+        "${auth[@]}" \
+        "https://api.github.com/repos/${REPO}/releases/latest")
+
+    ver=$(printf '%s' "$release_json" | jq -r '.tag_name')
+    if [[ -z "$ver" || "$ver" == "null" ]]; then
+        echo "❌ Failed to resolve scooter release (GitHub API)." >&2
+        return 1
+    fi
+
+    echo "🌐 Installing scooter ${ver}..."
+
+    local asset_suffix
+    case "${os}-${m}" in
+        Linux-x86_64|Linux-amd64)
+            asset_suffix="x86_64-unknown-linux-musl" ;;
+        Linux-aarch64|Linux-arm64)
+            asset_suffix="aarch64-unknown-linux-musl" ;;
+        *)
+            echo "❌ Unsupported OS/arch for scooter: ${os} (${m})" >&2
+            return 1 ;;
+    esac
+
+    local asset_name="scooter-${ver}-${asset_suffix}.tar.gz"
+    local asset_url
+    asset_url=$(printf '%s' "$release_json" | jq -r --arg name "$asset_name" \
+        '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
+
+    if [[ -z "$asset_url" ]]; then
+        echo "❌ No release asset named ${asset_name}" >&2
+        return 1
+    fi
+
+    local install_dir="${HOME}/.local/bin"
+    mkdir -p "$install_dir"
+
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    echo "⬇️  Downloading ${asset_name}..."
+    if ! curl --progress-bar -L -o "${tmpdir}/${asset_name}" "$asset_url"; then
+        rm -rf "$tmpdir"
+        return 1
+    fi
+
+    tar -xzf "${tmpdir}/${asset_name}" -C "$tmpdir"
+
+    # The tarball contains a single directory: scooter-${ver}-${asset_suffix}/scooter
+    local extracted_dir="${tmpdir}/scooter-${ver}-${asset_suffix}"
+    if [[ -d "$extracted_dir" ]] && [[ -f "${extracted_dir}/scooter" ]]; then
+        mv "${extracted_dir}/scooter" "${install_dir}/scooter"
+    elif [[ -f "${tmpdir}/scooter" ]]; then
+        # Some tarballs extract flat (no containing directory)
+        mv "${tmpdir}/scooter" "${install_dir}/scooter"
+    else
+        echo "❌ Could not find scooter binary in extracted archive" >&2
+        ls -la "${tmpdir}" >&2
+        rm -rf "$tmpdir"
+        return 1
+    fi
+
+    chmod +x "${install_dir}/scooter"
+    rm -rf "$tmpdir"
+    echo "✅ scooter ${ver} installed"
+}
+
 install_amoxide() {
     if [[ "${INSTALL_FORCE:-0}" != 1 ]] && [[ -x "$HOME/.cargo/bin/am" ]]; then
         echo "✅ amoxide"
@@ -782,6 +869,7 @@ main() {
     install_eza
     install_tv
     install_helix
+    install_scooter
     install_amoxide
     install_go
     install_go_packages

@@ -28,6 +28,12 @@ mode.select = "SEL"
 C-g = [":write-all", ":new", ":insert-output lazygit", ":buffer-close!", ":redraw", ":reload-all"]
 tab = "move_parent_node_end"
 S-tab = "move_parent_node_start"
+C-r = [
+    ":write-all",
+    ":insert-output scooter --no-stdin >/dev/tty",
+    ":redraw",
+    ":reload-all"
+]
 
 [keys.insert]
 S-tab = "move_parent_node_start"
