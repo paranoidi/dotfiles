@@ -9,3 +9,8 @@ inherits = "jetbrains_dark"
 "ui.cursor.primary.select" = { fg = "black", bg = "#e0e0e0" }
 "ui.cursor.primary.insert" = { fg = "black", bg = "#e0e0e0" }
 "ui.cursor.match" = { fg = "black", bg = "#e0b000", modifiers = ["bold"] }
+
+# Mode indicator colors in the status line
+"ui.statusline.normal" = { fg = "green156", modifiers = ["bold"] }
+"ui.statusline.insert" = { fg = "blue34", bg = "red213", modifiers = ["bold"] }
+"ui.statusline.select" = { fg = "blue34", bg = "blue184", modifiers = ["bold"] }
