@@ -3,6 +3,10 @@ theme = "jetbrains_dark_fixed"
 [editor]
 line-number = "relative"
 color-modes = true
+end-of-line-diagnostics = "hint"
+
+[editor.inline-diagnostics]
+cursor-line = "warning" # show warnings and errors on the cursorline inline
 
 # Git diff gutter — shows +/-/~ bars for lines changed vs git index
 [editor.gutters]
@@ -22,3 +26,13 @@ mode.select = "SEL"
 # buffer, auto-closes it on exit, redraws and reloads to clear stale gutters
 [keys.normal]
 C-g = [":write-all", ":new", ":insert-output lazygit", ":buffer-close!", ":redraw", ":reload-all"]
+tab = "move_parent_node_end"
+S-tab = "move_parent_node_start"
+
+[keys.insert]
+S-tab = "move_parent_node_start"
+
+[keys.select]
+tab = "extend_parent_node_end"
+S-tab = "extend_parent_node_start"
+
