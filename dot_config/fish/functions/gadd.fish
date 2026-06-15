@@ -101,6 +101,17 @@ function gadd --description "🔀 git add files with fzf"
     set -l restore_cmd "sh -c $(string escape -- $restore_script) _ $(string escape -- $repo_root) {+}"
     set -l reload_cmd "git -C $(string escape -- $repo_root) -c color.status=always status --porcelain=v1"
 
+    set -l edit_script '
+        repo_root=$1
+        line=$2
+        cd "$repo_root" || exit 1
+        path=$(printf "%s" "$line" | cut -c4-)
+        case "$path" in *" -> "*) path=${path##* -> } ;; esac
+        path=${path#\"}; path=${path%\"}
+        ${EDITOR:-vi} -- "$path"
+    '
+    set -l edit_cmd "sh -c $(string escape -- $edit_script) _ $(string escape -- $repo_root) {}"
+
     set -l selected (
         printf "%s\n" $status_output |
         fzf --ansi \
@@ -109,11 +120,12 @@ function gadd --description "🔀 git add files with fzf"
             --reverse \
             --border \
             --prompt="git add> " \
-            --header="TAB: select  Ctrl-R: restore  Ctrl-P: toggle preview" \
+            --header="TAB: select  Ctrl-R: restore  Ctrl-E: edit  Ctrl-P: toggle preview" \
             --preview=$preview_cmd \
             --preview-window=right:60%:wrap \
             --bind="ctrl-p:toggle-preview" \
             --bind="ctrl-r:execute($restore_cmd)+reload($reload_cmd)" \
+            --bind="ctrl-e:execute($edit_cmd)" \
             --with-nth=2..
     )
     or return
