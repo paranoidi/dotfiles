@@ -36,6 +36,13 @@ C-r = [
 ]
 x = "select_line_below"
 X = "select_line_above"
+C-p = [
+  ':sh rm -f /tmp/pc-chooser',
+  ':insert-output pc -select "%{buffer_name}" -chooser-file=/tmp/pc-chooser',
+  ':sh printf "\x1b[?1049h\x1b[?2004h" > /dev/tty',
+  ':open %sh{cat /tmp/pc-chooser}',
+  ':redraw',
+]
 
 [keys.insert]
 S-tab = "move_parent_node_start"
