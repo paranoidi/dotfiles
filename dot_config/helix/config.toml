@@ -34,6 +34,8 @@ C-r = [
     ":redraw",
     ":reload-all"
 ]
+x = "select_line_below"
+X = "select_line_above"
 
 [keys.insert]
 S-tab = "move_parent_node_start"
