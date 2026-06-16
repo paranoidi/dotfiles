@@ -8,7 +8,7 @@ set -euo pipefail
 # Core packages installed on all systems.
 APT_PACKAGES=(
     curl wget git mc task-spooler tmux git-delta
-    fish fd-find bat neovim gh jq unzip fastfetch neofetch
+    fish fd-find bat neovim gh jq unzip
     ripgrep silversearcher-ag sysstat
 )
 
@@ -115,6 +115,16 @@ _github_latest_release_asset_url() {
         | head -n1
 }
 
+purge_neofetch() {
+    if _apt_pkg_is_installed neofetch; then
+        echo "🗑️  Removing neofetch (deprecated)..."
+        _run_apt purge -y -qq neofetch
+        echo "✅ neofetch purged"
+    else
+        echo "✅ neofetch (already removed)"
+    fi
+}
+
 install_apt_packages() {
     local packages_to_install=()
     local packages=("${APT_PACKAGES[@]}")
@@ -208,6 +218,99 @@ install_fzf() {
         echo "❌ fzf install failed; run ~/.fzf/install manually to see errors" >&2
         return 1
     fi
+}
+
+install_fastfetch() {
+    if ! _want_install_cmd fastfetch; then
+        echo "✅ Fastfetch"
+        return 0
+    fi
+
+    local REPO="fastfetch-cli/fastfetch"
+    local m os ver deb_arch
+    m="$(uname -m)"
+    os="$(uname -s)"
+
+    case "$m" in
+        x86_64|amd64) deb_arch=amd64 ;;
+        aarch64|arm64) deb_arch=aarch64 ;;
+        armv7l)        deb_arch=armv7l ;;
+        armv6l)        deb_arch=armv6l ;;
+        i686|i386)     deb_arch=i686 ;;
+        *)
+            echo "❌ No fastfetch binary for architecture ${m}" >&2
+            return 1
+            ;;
+    esac
+
+    local auth=()
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+        auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+    elif [[ -n "${GH_TOKEN:-}" ]]; then
+        auth=(-H "Authorization: Bearer ${GH_TOKEN}")
+    fi
+
+    local release_json
+    release_json=$(curl -fsSL \
+        -H "Accept: application/vnd.github+json" \
+        -H "User-Agent: run_onchange-install-packages" \
+        "${auth[@]}" \
+        "https://api.github.com/repos/${REPO}/releases/latest")
+
+    ver=$(printf '%s' "$release_json" | jq -r '.tag_name')
+    if [[ -z "$ver" || "$ver" == "null" ]]; then
+        echo "❌ Failed to resolve fastfetch release (GitHub API)." >&2
+        return 1
+    fi
+
+    echo "🌐 Installing fastfetch ${ver} from GitHub..."
+
+    local deb_file deb_url deb_path
+    if [[ "$os" == Linux ]] && command -v apt-get >/dev/null 2>&1 && [[ -f /etc/debian_version ]]; then
+        deb_file="fastfetch-linux-${deb_arch}.deb"
+        deb_url=$(printf '%s' "$release_json" | jq -r --arg name "$deb_file" \
+            '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
+
+        if [[ -z "$deb_url" ]]; then
+            echo "⚠️  No .deb release asset named ${deb_file}, falling back to tarball..." >&2
+        else
+            deb_path=$(mktemp /tmp/fastfetch-XXXXXX.deb)
+            echo "⬇️  Downloading ${deb_file}..."
+            if curl -fsSL -o "$deb_path" "$deb_url"; then
+                if sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                    -qq -o Dpkg::Use-Pty=0 "$deb_path"; then
+                    rm -f "$deb_path"
+                    echo "✅ fastfetch ${ver} installed"
+                    return 0
+                fi
+                rm -f "$deb_path"
+                echo "⚠️  .deb install failed, falling back to tarball..." >&2
+            else
+                rm -f "$deb_path"
+                echo "⚠️  Download failed for ${deb_file}, falling back to tarball..." >&2
+            fi
+        fi
+    fi
+
+    # Fallback: tarball install (non-Debian systems or .deb path failed)
+    local tar_file tar_url tmpdir
+    tar_file="fastfetch-linux-${deb_arch}.tar.gz"
+    tar_url=$(printf '%s' "$release_json" | jq -r --arg name "$tar_file" \
+        '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
+
+    if [[ -z "$tar_url" ]]; then
+        echo "❌ No release asset named ${tar_file} either" >&2
+        return 1
+    fi
+
+    tmpdir=$(mktemp -d)
+    echo "⬇️  Downloading ${tar_file}..."
+    curl -fsSL -o "${tmpdir}/${tar_file}" "$tar_url" || { rm -rf "$tmpdir"; return 1; }
+    tar -xzf "${tmpdir}/${tar_file}" -C "$tmpdir"
+    sudo install -m 0755 "${tmpdir}/fastfetch-linux-${deb_arch}/usr/bin/fastfetch" "/usr/local/bin/fastfetch"
+    sudo install -m 0755 "${tmpdir}/fastfetch-linux-${deb_arch}/usr/bin/flashfetch" "/usr/local/bin/flashfetch" 2>/dev/null || true
+    rm -rf "$tmpdir"
+    echo "✅ fastfetch ${ver} installed (tarball)"
 }
 
 install_starship() {
@@ -860,6 +963,7 @@ main() {
 
     if [[ "$UPDATE_ONLY" == 0 ]]; then
         install_apt_packages
+        purge_neofetch
         ensure_fd_symlink
     fi
     install_uv
@@ -867,6 +971,7 @@ main() {
     install_fzf
     install_starship
     install_eza
+    install_fastfetch
     install_tv
     install_helix
     install_scooter
