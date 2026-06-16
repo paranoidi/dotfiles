@@ -3,10 +3,10 @@
 set -l file $argv[1]
 set -l cols (if set -q FZF_PREVIEW_COLUMNS; echo $FZF_PREVIEW_COLUMNS; else; tput cols; end)
 
-set -l b (set_color brblack)        # borders + hints
-set -l T (set_color --bold normal)  # section title (bold)
-set -l S (set_color cyan)           # shortcut keys
-set -l n (set_color normal)         # reset
+set -l b (set_color brblack) # borders + hints
+set -l T (set_color --bold blue) # section title (bold)
+set -l S (set_color cyan) # shortcut keys
+set -l n (set_color normal) # reset
 
 set -l lines
 while read -l line
@@ -89,16 +89,16 @@ for s in (seq 1 (math (count $header_pos) - 1))
     if test $sep_len -lt 2
         set sep_len 2
     end
-    printf "%s── %s%s%s %s%s\n" $b $T $title $b (string repeat -n $sep_len '─') $n
+    printf "%s~~ %s%s%s %s%s\n" $b $T $title $b (string repeat -n $sep_len '~') $n
 
     for i in (seq (count $actions))
         set -l a $actions[$i]
         set -l sh $shortcuts[$i]
         set -l h $hints[$i]
         if test $show_hints -eq 1 -a -n "$h"
-            printf "%-*s %s│%s %s%-*s%s  %s(%s)%s\n" $w1 "$a" $b $n $S $w2 "$sh" $n $b "$h" $n
+            printf "%-*s %s %s %s%-*s%s  %s(%s)%s\n" $w1 "$a" $b $n $S $w2 "$sh" $n $b "$h" $n
         else if test -n "$sh"
-            printf "%-*s %s│%s %s%s%s\n" $w1 "$a" $b $n $S "$sh" $n
+            printf "%-*s %s %s %s%s%s\n" $w1 "$a" $b $n $S "$sh" $n
         else
             printf "%s\n" "$a"
         end
