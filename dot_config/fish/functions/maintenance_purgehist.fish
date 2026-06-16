@@ -5,5 +5,5 @@ function maintenance_purgehist
     end
 
     tsp fish -c "rmhist -s '^(sgpt|aichat|git commit)'"
-    tsp fish -c "rmhist -s '^(ls|cd\s\.\.)\$'"
+    tsp fish -c "rmhist -s '^(ls|cd\s\.\.|kill|murder)\$'"
 end
