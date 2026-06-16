@@ -1,4 +1,4 @@
-── Fish ───────────────────────────────────────────────────────────────
-Current command to editor |  Alt-E            (E for edit)
-Delete word (yank)        |  Ctrl-W           (W for word)
-Insert word (yank)        |  Ctrl-Y           (Y for yank)
+## Fish
+Current command to editor|Alt-E|E for edit
+Delete word (yank)|Ctrl-W|W for word
+Insert word (yank)|Ctrl-Y|Y for yank

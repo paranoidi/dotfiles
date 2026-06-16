@@ -1,16 +1,17 @@
-── FZF ────────────────────────────────────────────────────────────────
-Search History            |  Ctrl-R           (R for reverse)
-Search and insert file    |  Ctrl-T
-Cd into directory         |  Alt-C
-Search Processes          |  Ctrl-P           (P for process)
-Kill process              |  Ctrl-Alt-P
-Search Variables          |  Ctrl-Alt-Shift-V (V for variable)
-Jump to mark              |  Ctrl-E           (E for explore)
-── FZF search syntax ─────────────────────────────────────────────────
-'wild                     |  exact-match
-'wild'                    |  exact-boundary-match
-^music                    |  prefix-exact-match
-.mp3$                     |  suffix-exact-match
-!fire                     |  inverse-exact-match
-!^music                   |  inverse-prefix-exact-match
-!.mp3$                    |  inverse-suffix-exact-match
+## FZF
+Search History|Ctrl-R|R for reverse
+Search and insert file|Ctrl-T
+Cd into directory|Alt-C
+Search Processes|Ctrl-P|P for process
+Kill process|Ctrl-Alt-P
+Search Variables|Ctrl-Alt-Shift-V|V for variable
+Jump to mark|Ctrl-E|E for explore
+
+## FZF search syntax
+'wild|exact-match
+'wild'|exact-boundary-match
+^music|prefix-exact-match
+.mp3$|suffix-exact-match
+!fire|inverse-exact-match
+!^music|inverse-prefix-exact-match
+!.mp3$|inverse-suffix-exact-match

@@ -1,10 +1,10 @@
-── GIT (Ctrl-G) ──────────────────────────────────────────────────────
-Files                     |  F                (F for files)
-Branches                  |  B                (B for branches)
-Tags                      |  T                (T for tags)
-Remotes                   |  R                (R for remotes)
-Commit History            |  H                (H for history)
-Stashes                   |  S                (S for stashes)
-Reflogs                   |  L                (L for reflogs)
-Worktrees                 |  W                (W for worktrees)
-Each ref                  |  E                (E for each ref)
+## GIT (Ctrl-G)
+Files|F|F for files
+Branches|B|B for branches
+Tags|T|T for tags
+Remotes|R|R for remotes
+Commit History|H|H for history
+Stashes|S|S for stashes
+Reflogs|L|L for reflogs
+Worktrees|W|W for worktrees
+Each ref|E|E for each ref

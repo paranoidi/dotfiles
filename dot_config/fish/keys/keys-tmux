@@ -1,22 +1,22 @@
-── Tmux (Ctrl-a unless otherwise specified, tt for session switch) ───
-Split window horizontally |  " / h            (h for horizontal)
-Split window vertically   |  % / v            (v for vertical)
-Change split orientation  |  space
-Maximize current panel    |  z                (z for zoom)
-Reload .tmux.conf         |  R                (R for reload)
-Send to all panes on      |  e                (e for echo)
-Send to all panes off     |  E                (E for echo)
-Kill session              |  K                (K for kill)
-Chat with LLM             |  i                (i for intelligence)
-List windows              |  w                (w for windows)
-Next window               |  n / Alt-PgDown   (n for next)
-Previous window           |  p / Alt-PgUp     (p for previous)
-Move after current win    |  Ctrl-Alt-PgDown
-Move before current win   |  Ctrl-Alt-PgUp
-Clear terminal and buffer |  l                (l is standard in shell)
-Scroll up                 |  Ctrl-PgUp
-Scroll down               |  Ctrl-PgDown
-Previous window           |  Ctrl-a twice
-Send Ctrl-a when nested   |  a
-Install tmux plugins      |  I                (I for install)
-Uninstall plugins         |  alt-u            (u for uninstall)
+## Tmux (Ctrl-a unless otherwise specified, tt for session switch)
+Split window horizontally|" / h|h for horizontal
+Split window vertically|% / v|v for vertical
+Change split orientation|space
+Maximize current panel|z|z for zoom
+Reload .tmux.conf|R|R for reload
+Send to all panes on|e|e for echo
+Send to all panes off|E|E for echo
+Kill session|K|K for kill
+Chat with LLM|i|i for intelligence
+List windows|w|w for windows
+Next window|n / Alt-PgDown|n for next
+Previous window|p / Alt-PgUp|p for previous
+Move after current win|Ctrl-Alt-PgDown
+Move before current win|Ctrl-Alt-PgUp
+Clear terminal and buffer|l|l is standard in shell
+Scroll up|Ctrl-PgUp
+Scroll down|Ctrl-PgDown
+Previous window|Ctrl-a twice
+Send Ctrl-a when nested|a
+Install tmux plugins|I|I for install
+Uninstall plugins|alt-u|u for uninstall
