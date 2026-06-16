@@ -36,12 +36,14 @@
     lg = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr)%C(bold blue)<%an>%Creset' --abbrev-commit
     fixup = "!f() { TARGET=$(git rev-parse "$1"); git commit --fixup=$TARGET ${@:2} && EDITOR=true git rebase -i --autostash --autosquash $TARGET^; }; f"
 [credential "https://github.com"]
-    helper = 
     helper = !/usr/bin/gh auth git-credential
 [credential "https://gist.github.com"]
-    helper = 
     helper = !/usr/bin/gh auth git-credential
 [mergetool]
     prompt = false
 [commit]
     verbose = true
+[status]
+    showUntrackedFiles = no
+[rebase]
+    autoStash = true
