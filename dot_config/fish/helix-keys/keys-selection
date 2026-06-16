@@ -1,0 +1,31 @@
+## Selection manipulation
+Select all regex matches inside selections|s
+Split selection into sub selections on regex|S
+Split selection on newlines|Alt-s
+Merge consecutive selections|Alt-_
+Align selection in columns|&
+Trim whitespace from the selection|_
+Collapse selection onto a single cursor|;
+Flip selection cursor and anchor|Alt-;
+Ensure selection is in forward direction|Alt-:
+Keep only the primary selection|,
+Remove the primary selection|Alt-,
+Copy selection onto next line (cursor below)|C
+Copy selection onto previous line (cursor above)|Alt-C
+Rotate main selection backward|(
+Rotate main selection forward|)
+Rotate selection contents backward|Alt-(
+Rotate selection contents forward|Alt-)
+Select entire file|%
+Select current line (extend to next if selected)|x
+Extend selection to line bounds|X
+Shrink selection to line bounds|Alt-x
+Join lines inside selection|J
+Join lines and select inserted space|Alt-J
+Keep selections matching the regex|K
+Remove selections matching the regex|Alt-K
+Comment/uncomment the selections|Ctrl-c
+Expand selection to parent syntax node (TS)|Alt-o / Alt-up
+Shrink syntax tree object selection (TS)|Alt-i / Alt-down
+Select previous sibling syntax node (TS)|Alt-p / Alt-left
+Select next sibling syntax node (TS)|Alt-n / Alt-right

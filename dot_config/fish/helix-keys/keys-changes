@@ -1,0 +1,32 @@
+## Changes
+Replace with a character|r
+Replace with yanked text|R
+Switch case of selected text|~
+Set selected text to lower case|`
+Set selected text to upper case|Alt-`
+Insert before selection|i
+Insert after selection (append)|a
+Insert at the start of the line|I
+Insert at the end of the line|A
+Open new line below selection|o
+Open new line above selection|O
+Repeat last insert|.
+Undo change|u
+Redo change|U
+Move backward in history|Alt-u
+Move forward in history|Alt-U
+Yank selection|y
+Paste after selection|p
+Paste before selection|P
+Select register to yank/paste from|" <reg>
+Indent selection|>
+Unindent selection|<
+Format selection (LSP)|=
+Delete selection|d
+Delete selection, without yanking|Alt-d
+Change selection (delete + insert mode)|c
+Change selection without yanking|Alt-c
+Increment number under cursor|Ctrl-a
+Decrement number under cursor|Ctrl-x
+Start/stop macro recording|Q
+Play back recorded macro|q

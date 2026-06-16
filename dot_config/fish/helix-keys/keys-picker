@@ -1,0 +1,12 @@
+## Picker
+Previous entry|Shift-Tab / Up / Ctrl-p
+Next entry|Tab / Down / Ctrl-n
+Page up|PageUp / Ctrl-u
+Page down|PageDown / Ctrl-d
+Go to first entry|Home
+Go to last entry|End
+Open selected|Enter
+Open horizontally|Ctrl-s
+Open vertically|Ctrl-v
+Toggle preview|Ctrl-t
+Close picker|Escape / Ctrl-c

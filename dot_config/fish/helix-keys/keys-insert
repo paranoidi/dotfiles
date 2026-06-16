@@ -1,0 +1,20 @@
+## Insert mode
+Switch to normal mode|Escape
+Commit undo checkpoint|Ctrl-s
+Autocomplete|Ctrl-x
+Insert a register content|Ctrl-r
+Delete previous word|Ctrl-w / Alt-Backspace
+Delete next word|Alt-d / Alt-Delete
+Delete to start of line|Ctrl-u
+Delete to end of line|Ctrl-k
+Delete previous char|Ctrl-h / Backspace
+Delete next char|Ctrl-d / Delete
+Insert new line|Ctrl-j / Enter
+Move to previous line|Up
+Move to next line|Down
+Backward a char|Left
+Forward a char|Right
+Move one page up|PageUp
+Move one page down|PageDown
+Move to line start|Home
+Move to line end|End

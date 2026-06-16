@@ -1,0 +1,16 @@
+## Window mode (prefix: Ctrl-w)
+Switch to next window|w / Ctrl-w
+Vertical right split|v / Ctrl-v
+Horizontal bottom split|s / Ctrl-s
+Go to files in selection in horizontal splits|f
+Go to files in selection in vertical splits|F
+Move to left split|h / Ctrl-h / Left
+Move to split below|j / Ctrl-j / Down
+Move to split above|k / Ctrl-k / Up
+Move to right split|l / Ctrl-l / Right
+Close current window|q / Ctrl-q
+Only keep current window, close others|o / Ctrl-o
+Swap window to the left|H
+Swap window downwards|J
+Swap window upwards|K
+Swap window to the right|L

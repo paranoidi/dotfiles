@@ -1,0 +1,11 @@
+## View mode (prefix: z)
+Vertically center the line|z / c
+Align line to top of screen|t
+Align line to bottom of screen|b
+Align line to middle of screen (horizontal)|m
+Scroll view downwards|j / down
+Scroll view upwards|k / up
+Move page down|Ctrl-f / PageDown
+Move page up|Ctrl-b / PageUp
+Move half page down|Ctrl-d
+Move half page up|Ctrl-u

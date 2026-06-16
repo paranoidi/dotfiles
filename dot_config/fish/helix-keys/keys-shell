@@ -1,0 +1,6 @@
+## Shell
+Pipe selection through shell command, replace|"|
+Pipe selection into shell command, ignore output|Alt-|
+Run shell, insert output before each selection|!
+Run shell, append output after each selection|Alt-!
+Pipe selection, keep where command returned 0|$

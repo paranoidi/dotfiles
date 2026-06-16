@@ -1,0 +1,21 @@
+## Goto mode (prefix: g)
+Go to line number <n> else start of file|g
+Go to end of file|e
+Go to files in the selection|f
+Go to start of line|h
+Go to end of line|l
+Go to first non-whitespace character of line|s
+Go to top of screen|t
+Go to middle of screen|c
+Go to bottom of screen|b
+Go to definition (LSP)|d
+Go to type definition (LSP)|y
+Go to references (LSP)|r
+Go to implementation (LSP)|i
+Go to last accessed/alternate file|a
+Go to last modified/alternate file|m
+Go to next buffer|n
+Go to previous buffer|p
+Go to last modification in current file|.
+Move down textual (instead of visual) line|j
+Move up textual (instead of visual) line|k

@@ -1,0 +1,39 @@
+## Commands (:)
+Close current view|:q / :quit
+Force close, ignore unsaved changes|:q! / :quit!
+Open a file from disk|:o / :open <file>
+Close current buffer|:bc / :buffer-close
+Write changes to disk|:w / :write
+Force write, create subdirectories|:w!
+Write all buffers to disk|:wa / :write-all
+Write and quit|:wq
+Write all and quit all views|:wqa / :write-quit-all
+Quit all views|:qa / :quit-all
+Force quit all views|:qa!
+Create new scratch buffer|:new
+Format file using LSP formatter|:fmt / :format
+Set indentation style|:set-indent <t or 1-8>
+Set line ending (crlf or lf)|:set-line-ending <mode>
+Jump back in edit history|:earlier <steps or time>
+Jump forward in edit history|:later <steps or time>
+Change current working directory|:cd <path>
+Show current working directory|:pwd
+Reload from source file|:reload
+Reload all documents|:reload-all
+Change theme|:theme <name>
+Set language of current buffer|:lang <name>
+Set config option at runtime|:set <option> <value>
+Toggle boolean config option|:toggle <option>
+Get current value of config option|:get <option>
+Sort ranges in selection|:sort
+Sort ranges in selection (reverse)|:rsort
+Goto line number|:goto <n>
+Restart language server|:lsp-restart
+Stop language server|:lsp-stop
+Open user config.toml|:config-open
+Open workspace config.toml|:config-open-workspace
+Refresh user config|:config-reload
+Open helix log file|:log-open
+Hard-wrap current selection to width|:reflow [width]
+Clear register (or all if no arg)|:reg-clear [reg]
+Run shell command|:sh <cmd>

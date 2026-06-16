@@ -1,0 +1,23 @@
+## Unimpaired
+Go to next diagnostic (LSP)|]d
+Go to previous diagnostic (LSP)|[d
+Go to last diagnostic in document (LSP)|]D
+Go to first diagnostic in document (LSP)|[D
+Go to next function (TS)|]f
+Go to previous function (TS)|[f
+Go to next type definition (TS)|]t
+Go to previous type definition (TS)|[t
+Go to next argument/parameter (TS)|]a
+Go to previous argument/parameter (TS)|[a
+Go to next comment (TS)|]c
+Go to previous comment (TS)|[c
+Go to next test (TS)|]T
+Go to previous test (TS)|[T
+Go to next paragraph|]p
+Go to previous paragraph|[p
+Go to next change|]g
+Go to previous change|[g
+Go to last change|]G
+Go to first change|[G
+Add newline below|]Space
+Add newline above|[Space

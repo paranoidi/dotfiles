@@ -1,0 +1,23 @@
+## Space mode (prefix: Space)
+Open file picker|f
+Open file picker at current working directory|F
+Open buffer picker|b
+Open jumplist picker|j
+Debug (experimental)|g
+Show documentation for item under cursor (LSP)|k
+Open document symbol picker (LSP)|s
+Open workspace symbol picker (LSP)|S
+Open document diagnostics picker (LSP)|d
+Open workspace diagnostics picker (LSP)|D
+Rename symbol (LSP)|r
+Apply code action (LSP)|a
+Select symbol references (LSP)|h
+Open last fuzzy picker|'
+Enter window mode|w
+Paste system clipboard after selections|p
+Paste system clipboard before selections|P
+Join and yank selections to clipboard|y
+Yank main selection to clipboard|Y
+Replace selections by clipboard contents|R
+Global search in workspace folder|/
+Open command palette|?

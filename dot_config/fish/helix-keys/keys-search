@@ -1,0 +1,6 @@
+## Search
+Search for regex pattern|/
+Search for previous pattern|?
+Select next search match|n
+Select previous search match|N
+Use current selection as search pattern|*

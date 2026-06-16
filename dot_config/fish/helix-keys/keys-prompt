@@ -1,0 +1,21 @@
+## Prompt
+Close prompt|Escape / Ctrl-c
+Backward a word|Alt-b / Ctrl-Left
+Backward a char|Ctrl-b / Left
+Forward a word|Alt-f / Ctrl-Right
+Forward a char|Ctrl-f / Right
+Move to prompt end|Ctrl-e / End
+Move to prompt start|Ctrl-a / Home
+Delete previous word|Ctrl-w / Alt-Backspace
+Delete next word|Alt-d / Ctrl-Delete
+Delete to start of line|Ctrl-u
+Delete to end of line|Ctrl-k
+Delete previous char|Ctrl-h / Backspace
+Delete next char|Ctrl-d / Delete
+Insert word under doc cursor|Ctrl-r Ctrl-w
+Select previous history|Up / Ctrl-p
+Select next history|Down / Ctrl-n
+Insert register content|Ctrl-r <char>
+Select next completion item|Tab
+Select previous completion item|Shift-Tab
+Open selected|Enter

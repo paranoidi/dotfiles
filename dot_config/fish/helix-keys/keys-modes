@@ -1,0 +1,9 @@
+## Minor modes
+Enter select (extend) mode|v
+Enter goto mode|g
+Enter match mode|m
+Enter command mode|:
+Enter view mode|z
+Enter sticky view mode|Z
+Enter window mode|Ctrl-w
+Enter space mode|Space

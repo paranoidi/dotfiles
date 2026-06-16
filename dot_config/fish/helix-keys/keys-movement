@@ -1,0 +1,25 @@
+## Movement
+Move left|h / Left
+Move down|j / Down
+Move up|k / Up
+Move right|l / Right
+Move next word start|w
+Move previous word start|b
+Move next WORD start|W
+Move previous WORD start|B
+Move next WORD end|E
+Find 'till next char|t
+Find next char|f
+Find 'till previous char|T
+Find previous char|F
+Go to line number <n>|G
+Repeat last motion (f, t or m)|Alt-.
+Move to start of line|Home
+Move to end of line|End
+Move page up|Ctrl-b / PageUp
+Move page down|Ctrl-f / PageDown
+Move half page up|Ctrl-u
+Move half page down|Ctrl-d
+Jump forward on jumplist|Ctrl-i
+Jump backward on jumplist|Ctrl-o
+Save current selection to jumplist|Ctrl-s
