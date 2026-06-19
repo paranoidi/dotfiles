@@ -149,11 +149,43 @@ function __wt_start -a root_dir worktree_dir
 
     echo "🏆 Worktree created: $name (branch: $task_branch, base: $base_branch)"
     cd $wtdir
-    set -l agent (set -q DEFAULT_AGENT; and echo $DEFAULT_AGENT; or echo pi)
-    if type -q gum
-        gum confirm "🤖 Launch agent ($agent)?" --default=yes; and $agent
-    else
+    set -l agent (__wt_pick_agent)
+    if test -n "$agent"
+        echo "🤖 Launching $agent..."
         $agent
+    end
+end
+
+# ── agent picker ──────────────────────────────────────────────────────
+function __wt_pick_agent
+    set -l candidates pi copilot claude hermes
+    set -l available
+    for c in $candidates
+        # type -q finds fish functions as well as PATH binaries
+        type -q $c; and set available $available $c
+    end
+
+    if test (count $available) -eq 0
+        return 1
+    end
+
+    # Put DEFAULT_AGENT first when it's in the available set
+    if set -q DEFAULT_AGENT; and contains -- $DEFAULT_AGENT $available
+        set -l ordered $DEFAULT_AGENT
+        for a in $available
+            test "$a" = "$DEFAULT_AGENT"; or set ordered $ordered $a
+        end
+        set available $ordered
+    end
+
+    if type -q fzf; and test (count $available) -gt 1
+        set -l picked (printf '%s\n' $available | fzf \
+            --header='Launch agent (esc to skip):' \
+            --prompt='agent> ')
+        test $status -eq 0; and test -n "$picked"; or return 1
+        echo $picked
+    else
+        echo $available[1]
     end
 end
 
