@@ -257,6 +257,13 @@ function __wt_done -a root_dir worktree_dir name
 
     echo "=== Finishing task: $name ==="
 
+    # cd to root_dir first so the shell's CWD survives worktree removal
+    cd $root_dir
+    or begin
+        echo "🚫 could not cd to project root $root_dir" >&2
+        return 1
+    end
+
     # 1. Detect the integration branch: stored metadata → remote HEAD → main → master
     set -l target_branch
     if test -f "$wtdir/.wt-base"
