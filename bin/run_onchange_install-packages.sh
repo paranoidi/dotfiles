@@ -234,8 +234,6 @@ install_fastfetch() {
     case "$m" in
         x86_64|amd64) deb_arch=amd64 ;;
         aarch64|arm64) deb_arch=aarch64 ;;
-        armv7l)        deb_arch=armv7l ;;
-        armv6l)        deb_arch=armv6l ;;
         i686|i386)     deb_arch=i686 ;;
         *)
             echo "❌ No fastfetch binary for architecture ${m}" >&2
@@ -267,9 +265,16 @@ install_fastfetch() {
 
     local deb_file deb_url deb_path
     if [[ "$os" == Linux ]] && command -v apt-get >/dev/null 2>&1 && [[ -f /etc/debian_version ]]; then
-        deb_file="fastfetch-linux-${deb_arch}.deb"
+        # Prefer -polyfilled variant (works on older glibc like RasPi OS / Debian 11)
+        # Falls back to regular if polyfilled isn't available for this arch.
+        deb_file="fastfetch-linux-${deb_arch}-polyfilled.deb"
         deb_url=$(printf '%s' "$release_json" | jq -r --arg name "$deb_file" \
             '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
+        if [[ -z "$deb_url" ]]; then
+            deb_file="fastfetch-linux-${deb_arch}.deb"
+            deb_url=$(printf '%s' "$release_json" | jq -r --arg name "$deb_file" \
+                '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
+        fi
 
         if [[ -z "$deb_url" ]]; then
             echo "⚠️  No .deb release asset named ${deb_file}, falling back to tarball..." >&2
@@ -294,9 +299,15 @@ install_fastfetch() {
 
     # Fallback: tarball install (non-Debian systems or .deb path failed)
     local tar_file tar_url tmpdir
-    tar_file="fastfetch-linux-${deb_arch}.tar.gz"
+    # Prefer -polyfilled variant for old glibc compatibility, fall back to regular
+    tar_file="fastfetch-linux-${deb_arch}-polyfilled.tar.gz"
     tar_url=$(printf '%s' "$release_json" | jq -r --arg name "$tar_file" \
         '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
+    if [[ -z "$tar_url" ]]; then
+        tar_file="fastfetch-linux-${deb_arch}.tar.gz"
+        tar_url=$(printf '%s' "$release_json" | jq -r --arg name "$tar_file" \
+            '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
+    fi
 
     if [[ -z "$tar_url" ]]; then
         echo "❌ No release asset named ${tar_file} either" >&2
@@ -307,8 +318,9 @@ install_fastfetch() {
     echo "⬇️  Downloading ${tar_file}..."
     curl -fsSL -o "${tmpdir}/${tar_file}" "$tar_url" || { rm -rf "$tmpdir"; return 1; }
     tar -xzf "${tmpdir}/${tar_file}" -C "$tmpdir"
-    sudo install -m 0755 "${tmpdir}/fastfetch-linux-${deb_arch}/usr/bin/fastfetch" "/usr/local/bin/fastfetch"
-    sudo install -m 0755 "${tmpdir}/fastfetch-linux-${deb_arch}/usr/bin/flashfetch" "/usr/local/bin/flashfetch" 2>/dev/null || true
+    local extract_dir="${tar_file%.tar.gz}"
+    sudo install -m 0755 "${tmpdir}/${extract_dir}/usr/bin/fastfetch" "/usr/local/bin/fastfetch"
+    sudo install -m 0755 "${tmpdir}/${extract_dir}/usr/bin/flashfetch" "/usr/local/bin/flashfetch" 2>/dev/null || true
     rm -rf "$tmpdir"
     echo "✅ fastfetch ${ver} installed (tarball)"
 }
@@ -436,9 +448,9 @@ install_helix() {
 
     local auth=()
     if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-        auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+        auth=(-H "Authorization: Bearer ***")
     elif [[ -n "${GH_TOKEN:-}" ]]; then
-        auth=(-H "Authorization: Bearer ${GH_TOKEN}")
+        auth=(-H "Authorization: Bearer ***")
     fi
 
     release_json=$(curl -fsSL \
@@ -455,7 +467,7 @@ install_helix() {
 
     echo "🌐 Installing helix ${ver}..."
 
-    # On x86_64 Debian/Ubuntu, prefer the official .deb package.
+    # On x86_64 Debian/Ubuntu, prefer the official .deb package from GitHub.
     if [[ "$os" == Linux ]] && command -v apt-get >/dev/null 2>&1 \
        && [[ -f /etc/debian_version ]] && [[ "$m" == "x86_64" ]]; then
         local deb_file deb_url deb_path
@@ -479,19 +491,12 @@ install_helix() {
     fi
 
     # Tarball install — covers aarch64 (Raspberry Pi 4/5 with 64-bit OS) and x86_64 fallback.
-    # 32-bit ARM (armv7l / armv6l / armv5tel) has no upstream prebuilt binary.
     local asset_suffix
     case "${os}-${m}" in
         Linux-x86_64|Linux-amd64)
             asset_suffix="x86_64-linux.tar.xz" ;;
         Linux-aarch64|Linux-arm64)
             asset_suffix="aarch64-linux.tar.xz" ;;
-        Linux-armv7l|Linux-armv6l|Linux-armv5*)
-            echo "❌ No prebuilt helix binary for 32-bit ARM (${m})." >&2
-            echo "ℹ️  Use 64-bit Raspberry Pi OS (aarch64) for prebuilt binaries." >&2
-            echo "ℹ️  Or build from source: https://github.com/${REPO}" >&2
-            return 1
-            ;;
         *)
             echo "❌ Unsupported OS/arch for helix: ${os} (${m})" >&2
             return 1
@@ -642,7 +647,6 @@ install_go() {
     case "$(uname -m)" in
         x86_64|amd64) arch=amd64 ;;
         aarch64|arm64) arch=arm64 ;;
-        armv7l|armv6l|armv5tel) arch=armv6l ;;
         i386|i686) arch=386 ;;
         *)
             echo "❌ Unsupported machine type for Go: $(uname -m)" >&2
@@ -829,10 +833,6 @@ install_zellij() {
         zellij_linux_triple="x86_64-unknown-linux-musl"
     elif [ "$_m" = "aarch64" ] || [ "$_m" = "arm64" ]; then
         zellij_linux_triple="aarch64-unknown-linux-musl"
-    elif [ "$_m" = "armv7l" ] || [ "$_m" = "armv6l" ] || [ "$_m" = "armv5tel" ]; then
-        echo "❌ zellij does not publish 32-bit ARM Linux binaries (machine: ${_m})." >&2
-        echo "ℹ️ Use 64-bit Raspberry Pi OS, or build from source: https://github.com/${REPO}" >&2
-        exit 1
     else
         echo "❌ Unsupported machine type '${_m}' for prebuilt zellij Linux musl." >&2
         echo "ℹ️ Supported: x86_64, aarch64 — https://github.com/${REPO}/releases" >&2

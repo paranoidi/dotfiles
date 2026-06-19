@@ -1,0 +1,30 @@
+# Use server-side decorations (Cinnamon WM manages titlebar/borders)
+# This gives a native Cinnamon look: thin titlebar, no rounded corners
+window-decoration = server
+
+# Step resize by character cells (macOS only currently)
+window-step-resize = true
+
+# Remove scrollbar
+scrollbar = never
+
+# Colors from GNOME Terminal default dark scheme (Tango-based)
+background = #232528
+foreground = #d3d7cf
+
+palette = 0=#2e3436
+palette = 1=#e66666
+palette = 2=#a2bd68
+palette = 3=#f0c674
+palette = 4=#6485ab
+palette = 5=#b294bb
+palette = 6=#8abeb7
+palette = 7=#d3d7cf
+palette = 8=#555753
+palette = 9=#d54e53
+palette = 10=#9ad949
+palette = 11=#e7c547
+palette = 12=#7baae0
+palette = 13=#c397d8
+palette = 14=#70c0b1
+palette = 15=#eeeeec

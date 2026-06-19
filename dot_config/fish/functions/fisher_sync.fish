@@ -52,7 +52,7 @@ function fisher_sync
                 if test (count $conflicts) -gt 0
                     set -l trash_dir $XDG_CONFIG_HOME/fish/functions/trash
                     mkdir -p $trash_dir
-                    echo "💀 Moving "(count $conflicts)" conflicting file(s) to trash for $plugin (attempt $attempt/$max_retries)"
+                    echo "🧹 Moving "(count $conflicts)" conflicting file(s) to trash for $plugin (attempt $attempt/$max_retries)"
                     for f in $conflicts
                         if test -f $f
                             mv -- $f $trash_dir/
