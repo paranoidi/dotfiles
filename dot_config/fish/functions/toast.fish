@@ -19,7 +19,7 @@ function toast
 
     if command -v notify-send >/dev/null 2>&1
         if test -n "$DISPLAY" -o -n "$WAYLAND_DISPLAY"
-            if not __claude_active_window_is_terminal
+            if not __is_terminal_focused
                 command notify-send "$text" 2>/dev/null &
             end
         end
