@@ -1,4 +1,4 @@
-function fn.clip --description ' Copy full path of a file or directory to clipboard 📋'
+function fnc --description ' Copy full path of a file or directory to clipboard 📋'
     if test (count $argv) -ne 1
         echo "Usage: cpath FILE_OR_DIRECTORY" >&2
         return 1

@@ -40,7 +40,7 @@ function maintenance_pc
                 set pc_version (git -C $repo_dir describe --tags --always 2>/dev/null)
             end
 
-            set -l message '   pc updated'
+            set -l message 'pc updated'
             if test -n "$pc_version"; and test -n "$go_toolchain"
                 set message "$message ($pc_version, $go_toolchain)"
             else if test -n "$pc_version"
@@ -49,11 +49,7 @@ function maintenance_pc
                 set message "$message ($go_toolchain)"
             end
 
-            if command -v tmux >/dev/null 2>&1
-                command tmux display-message "$message" 2>/dev/null
-            end
-
-            echo $message >&2
+            toast -i '' $message
             return 0
         end
 
@@ -86,7 +82,7 @@ function maintenance_pc
             set pc_version (env GOPROXY=direct go list -m -f '{{.Version}}' github.com/paranoidi/paras-commander@main 2>/dev/null)
         end
 
-        set -l message '🏆 pc updated'
+        set -l message 'pc updated'
         if test -n "$pc_version"; and test -n "$go_toolchain"
             set message "$message ($pc_version, $go_toolchain)"
         else if test -n "$pc_version"
@@ -95,11 +91,7 @@ function maintenance_pc
             set message "$message ($go_toolchain)"
         end
 
-        if command -v tmux >/dev/null 2>&1
-            command tmux display-message "$message" 2>/dev/null
-        end
-
-        echo $message >&2
+        toast -i '🏆' $message
         return 0
     end
 
