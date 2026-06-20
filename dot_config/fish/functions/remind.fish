@@ -62,22 +62,7 @@ function remind --description "Set a reminder: remind <duration> <msg> (e.g. rem
 
     echo "Reminder set: '$msg' $label"
 
-    # Pick notification method: graphical → notify-send, tmux fallback → display-message
-    if test -n "$DISPLAY" -o -n "$WAYLAND_DISPLAY"
-        set notify_cmd "notify-send -u normal '⏰ Reminder' '$msg'"
-    else if set -q TMUX; and command -v tmux >/dev/null 2>&1
-        # -d 0 keeps the message until a key is pressed; tmux socket is inherited via $TMUX
-        set notify_cmd "tmux display-message -d 0 '⏰ Reminder: $msg'"
-    else
-        set notify_cmd ""
-    end
-
-    if test -z "$notify_cmd"
-        echo "Warning: no notification method available (no display, no tmux)" >&2
-        return 0
-    end
-
-    # Run in a new session so it survives terminal close
-    setsid fish -c "sleep $total_seconds; $notify_cmd" &>/dev/null &
+    set escaped_msg (string escape -- (string join ' ' -- $msg))
+    setsid fish -c "sleep $total_seconds; toast -i ⏰ $escaped_msg" &>/dev/null &
     disown
 end
