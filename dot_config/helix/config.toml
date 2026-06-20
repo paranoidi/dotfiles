@@ -1,9 +1,10 @@
 theme = "jetbrains_dark_fixed"
 
 [editor]
-line-number = "relative"
 color-modes = true
 end-of-line-diagnostics = "hint"
+line-number = "relative"
+soft-wrap.enable = true
 
 [editor.inline-diagnostics]
 cursor-line = "warning" # show warnings and errors on the cursorline inline
@@ -14,13 +15,13 @@ layout = ["diff", "diagnostics", "spacer", "line-numbers", "spacer"]
 
 # Status line — includes "version-control" on the right for git branch
 [editor.statusline]
-left = ["mode", "spinner", "file-name", "read-only-indicator", "file-modification-indicator"]
 center = []
+left = ["mode", "spinner", "file-name", "read-only-indicator", "file-modification-indicator"]
+mode.insert = "INS"
+mode.normal = "NOR"
+mode.select = "SEL"
 right = ["diagnostics", "selections", "register", "position", "file-encoding", "version-control"]
 separator = "│"
-mode.normal = "NOR"
-mode.insert = "INS"
-mode.select = "SEL"
 
 # Lazygit integration (Ctrl+g): saves all buffers, opens lazygit in a temp
 # buffer, auto-closes it on exit, redraws and reloads to clear stale gutters
