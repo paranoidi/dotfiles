@@ -22,11 +22,18 @@ GO_PACKAGES=(
     github.com/charmbracelet/gum@latest
     github.com/jesseduffield/lazydocker@latest
     github.com/jesseduffield/lazygit@latest
+    github.com/muesli/duf@latest
 )
 
 # Python tools installed with `uv tool install` after uv is available.
 UV_TOOLS=(
     tldr
+)
+
+# Cargo (Rust) packages installed with `cargo install`.
+CARGO_PACKAGES=(
+    reef-shell
+    du-dust
 )
 
 # =============================================================================
@@ -778,6 +785,53 @@ install_uv_tools() {
     fi
 }
 
+install_rust() {
+    local cargo_cmd
+    cargo_cmd=$(command -v cargo 2>/dev/null || true)
+    [[ -z "$cargo_cmd" ]] && [[ -x "${HOME}/.cargo/bin/cargo" ]] && cargo_cmd="${HOME}/.cargo/bin/cargo"
+
+    if [[ -n "$cargo_cmd" ]] && [[ "${INSTALL_FORCE:-0}" != 1 ]]; then
+        echo "✅ Rust ($("$cargo_cmd" --version 2>/dev/null | awk '{print $2}'))"
+        return 0
+    fi
+    echo "🌐 Installing Rust via rustup..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
+    echo "✅ Rust installed"
+}
+
+install_cargo_packages() {
+    local cargo_cmd
+    cargo_cmd=$(command -v cargo 2>/dev/null || true)
+    [[ -z "$cargo_cmd" ]] && [[ -x "${HOME}/.cargo/bin/cargo" ]] && cargo_cmd="${HOME}/.cargo/bin/cargo"
+    if [[ -z "$cargo_cmd" ]]; then
+        echo "❌ cargo is not available, cannot install cargo packages" >&2
+        return 1
+    fi
+
+    local package command_name failed_packages=()
+    for package in "${CARGO_PACKAGES[@]}"; do
+        command_name="${package}"
+        if [[ "${INSTALL_FORCE:-0}" != 1 ]] && [[ "${UPDATE_ONLY:-0}" != 1 ]] \
+           && command -v "$command_name" >/dev/null 2>&1; then
+            echo "✅ ${command_name}"
+            continue
+        fi
+
+        echo "🦀 Installing ${package}..."
+        if "$cargo_cmd" install "$package"; then
+            echo "✅ Installed ${package}"
+        else
+            echo "❌ Failed to install ${package}" >&2
+            failed_packages+=("$package")
+        fi
+    done
+
+    if [ ${#failed_packages[@]} -gt 0 ]; then
+        echo "⚠️  Cargo packages that failed to install: ${failed_packages[*]}" >&2
+        return 1
+    fi
+}
+
 install_firacode_nerd_font_if_gui() {
     if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
         return 0
@@ -978,6 +1032,8 @@ main() {
     install_amoxide
     install_go
     install_go_packages
+    install_rust
+    install_cargo_packages
     install_task
     install_firacode_nerd_font_if_gui
     install_jetbrains_mono_font_if_gui
