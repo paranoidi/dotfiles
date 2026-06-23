@@ -12,6 +12,9 @@ customize_cinnamon() {
 
     # switch capslock to esc
     #setxkbmap -option caps:escape
+
+    # Number of workspaces
+    gsettings set org.cinnamon.desktop.wm.preferences num-workspaces 4
 }
 
 # Disable Grouped Window List Super+number shortcuts (all instances)

@@ -1,5 +1,5 @@
 function emojis --description '🎉 Print terminal-friendly emojis for copy and paste'
-    set single_width ✅ �� ✨ 🎉 ❌ 🚫 🚨 🔔 💡 🔧 🚀 🔥 🔑 🔍 🕓 ⏳ 📦 💥 💾 💀 📡 🌐 📥 🗂️ 📁 📋 📃 📖 📝 📜 📊 🏠 🤖 🧠 🎬 🚧 💬 🎮 🍺 💻 🧱 🚪 📏 🦀 🐳 🐹 🐪 🐟 🐍 🐞 💎 🔀 💩 🔗 🧪 🔐 🧰 🧹 🧊 🧵 🧭 🔴 🟠 🟡 🟢 🔵 🟣 ⚫
+    set single_width ✅ 🏆 ✨ 🎉 ❌ 🚫 🚨 🔔 💡 🔧 🚀 🔥 🔑 🔍 🕓 ⏳ 📦 💥 💾 💀 📡 🌐 📥 🗂️ 📁 📋 📃 📖 📝 📜 📊 🏠 🤖 🧠 🎬 🚧 💬 🎮 🍺 💻 🧱 🚪 📏 🦀 🐳 🐹 🐪 🐟 🐍 🐞 💎 🔀 💩 🔗 🧪 🔐 🧰 🧹 🧊 🧵 🧭 🔴 🟠 🟡 🟢 🔵 🟣 ⚫
     set double_width ℹ️ ⚠️ ✏️ 🗑️ 🛠️ ☢️ ☠️ ⏭️
 
     printf '%s\n' 'Terminal-friendly emojis for copy and paste'
