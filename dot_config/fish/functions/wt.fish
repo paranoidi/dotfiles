@@ -309,7 +309,10 @@ function __wt_done -a root_dir worktree_dir name
     or git -C $root_dir worktree remove --force $wtdir 2>/dev/null
     git -C $root_dir worktree prune
     git -C $root_dir branch -d $task_branch 2>/dev/null
-    or echo "🚫 could not delete local branch $task_branch" >&2
+    git -C $root_dir branch -D $task_branch 2>/dev/null
+    if git -C $root_dir rev-parse --verify "$task_branch" &>/dev/null
+        echo "🚫 could not delete local branch $task_branch" >&2
+    end
 
     echo ""
     echo "🏆 Done: $name -- merged to $target_branch"
