@@ -4,9 +4,9 @@ function gco --description "🔀 git checkout a branch with fzf"
         return 1
     end
 
-    set -l branches (git for-each-ref refs/heads/ --format='%(refname:short)')
+    set -l branches (git for-each-ref refs/heads/ refs/remotes/ --format='%(refname:short)' | grep -v '/HEAD$')
     if test (count $branches) -eq 0
-        echo "🚫 No local branches found." >&2
+        echo "🚫 No branches found." >&2
         return 1
     end
 

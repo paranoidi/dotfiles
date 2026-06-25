@@ -31,7 +31,7 @@ function wt --description "🌳 Git work-tree task manager"
     # Shorthand: wt <name> [base-branch] → start
     if begin
             test -n "$cmd"
-            and not contains -- $cmd start s list ls status done d kill open reattach clean help
+            and not contains -- $cmd start s list ls l status st done d kill k open reattach o nuke n help
         end
         __wt_start $root_dir $worktree_dir $cmd $argv
         return
@@ -40,9 +40,9 @@ function wt --description "🌳 Git work-tree task manager"
     switch "$cmd"
         case start s
             __wt_start $root_dir $worktree_dir $argv
-        case list ls
+        case list ls l
             git -C $root_dir worktree list --verbose
-        case status
+        case status st
             __wt_status $root_dir $worktree_dir
         case done d
             set -l tn $argv[1]
@@ -56,38 +56,40 @@ function wt --description "🌳 Git work-tree task manager"
                     __wt_done_interactive $root_dir $worktree_dir
                 end
             end
-        case kill
+        case kill k
             if test -n "$argv[1]"
                 __wt_kill $root_dir $worktree_dir $argv[1]
             else
                 __wt_kill_interactive $root_dir $worktree_dir
             end
-        case open reattach
+        case open reattach o
             set -l tn $argv[1]
             if test -n "$tn"
                 __wt_open $root_dir $worktree_dir $tn
             else
                 __wt_open_interactive $root_dir $worktree_dir
             end
-        case clean
+        case nuke n
             __wt_clean $root_dir $worktree_dir
         case '' help
+            echo "wt - git worktree task manager"
+            echo ""
             echo "Usage: wt <name> [base-branch] | wt <command> [args]"
             echo ""
-            echo "  <name> [branch]            Create task worktree (same as start); branch defaults to current branch"
+            echo -e "  <name> [branch]           → Create task worktree (same as start); branch defaults to current branch"
             echo ""
             echo "Commands:"
-            echo "  start | s <name> [branch]  Create worktree from branch (default: current branch)"
-            echo "  list | ls                  List git worktrees"
-            echo "  status                     Branch, dirty files, and sync vs origin for each task worktree"
-            echo "  done | d [name]            Merge into main and remove task worktree; no name outside worktree → fzf (single)"
-            echo "  kill [name]                Abandon worktree(s); no name + fzf → multi-select interactively"
-            echo "  open [name]                cd into existing task worktree; no name outside worktree → fzf (single)"
-            echo "  clean                      Remove ALL worktrees (interactive)"
+            echo -e "  \e[1ms\e[0mtart <name> [branch]     → Create worktree from branch (default: current branch)"
+            echo -e "  \e[1ml\e[0ms                        → List git worktrees"
+            echo -e "  \e[1mst\e[0matus                    → Branch, dirty files, and sync vs origin for each task worktree"
+            echo -e "  \e[1md\e[0mone [name]               → Merge into main and remove task worktree; no name outside worktree → fzf"
+            echo -e "  \e[1mk\e[0mill [name]               → Abandon worktree(s); no name + fzf → multi-select interactively"
+            echo -e "  \e[1mo\e[0mpen [name]               → cd into existing task worktree; no name outside worktree → fzf"
+            echo -e "  \e[1mn\e[0muke                      → Remove ALL worktrees (interactive)"
             echo ""
-            echo "Configuration (set before calling wt):"
-            echo "  set -gx WT_ROOT         Project root (default: auto-detect)"
-            echo "  set -gx WT_WORKTREE_DIR Worktree dir (default: .worktrees)"
+            echo "Configuration (env vars, set before calling wt):"
+            echo -e "  WT_ROOT                      → Project root (default: auto-detect from git)"
+            echo -e "  WT_WORKTREE_DIR              → Worktree directory name (default: .worktrees)"
         case '*'
             echo "🚫 unknown command '$cmd'" >&2
             return 1
@@ -454,7 +456,7 @@ function __wt_open -a root_dir worktree_dir name
     echo "🏆 Now in worktree: $name"
 end
 
-# ── wt clean (interactive) ─────────────────────────────────────────────
+# ── wt nuke (interactive) ─────────────────────────────────────────────
 function __wt_clean -a root_dir worktree_dir
     echo "WARNING: This will remove ALL worktrees in $worktree_dir/"
     echo "Unmerged changes will be lost."
