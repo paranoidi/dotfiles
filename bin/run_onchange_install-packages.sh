@@ -1145,3 +1145,10 @@ main() {
 }
 
 main "$@"
+_exit_code=$?
+
+if [[ -n "${TMUX:-}" ]] && command -v fish >/dev/null 2>&1; then
+    fish -c 'toast "Chezmoi install packages completed"' 2>/dev/null || true
+fi
+
+exit $_exit_code
