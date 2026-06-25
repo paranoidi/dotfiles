@@ -6,6 +6,9 @@ end-of-line-diagnostics = "hint"
 line-number = "relative"
 soft-wrap.enable = true
 
+[editor.lsp]
+auto-document-highlight = true
+
 [editor.inline-diagnostics]
 cursor-line = "warning" # show warnings and errors on the cursorline inline
 

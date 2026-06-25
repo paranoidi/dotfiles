@@ -14,3 +14,6 @@ inherits = "jetbrains_dark"
 "ui.statusline.normal" = { fg = "green156", modifiers = ["bold"] }
 "ui.statusline.insert" = { fg = "blue34", bg = "red213", modifiers = ["bold"] }
 "ui.statusline.select" = { fg = "blue34", bg = "blue184", modifiers = ["bold"] }
+
+# Hilight symbols
+"ui.highlight" = { bg = "#394143" }

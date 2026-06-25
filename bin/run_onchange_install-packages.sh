@@ -1,6 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# If not already inside tmux but tmux is available, relaunch inside a tmux
+# window so the terminal is freed for the duration of the (potentially long)
+# installation.  Prefer an existing "main" session; fall back to a new session
+# named "genesis".
+if [[ -z "${TMUX:-}" ]] && command -v tmux >/dev/null 2>&1; then
+    _script=$(realpath "${BASH_SOURCE[0]}")
+    _cmd="bash $(printf '%q' "$_script")"
+    [[ $# -gt 0 ]] && _cmd+=" $(printf '%q ' "$@")"
+    if tmux has-session -t main 2>/dev/null; then
+        tmux new-window -d -t main: -n "install-packages" "$_cmd"
+        echo "▶️  Launched in tmux session 'main' (new window). Attach: tmux attach -t main"
+    else
+        tmux new-session -d -s genesis -n "install-packages" "$_cmd"
+        echo "▶️  Launched in tmux session 'genesis'. Attach: tmux attach -t genesis"
+    fi
+    exit 0
+fi
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -443,104 +461,188 @@ install_tv() {
     echo "✅ tv ${ver} installed"
 }
 
-install_helix() {
-    if ! _want_install_cmd hx; then
-        echo "✅ helix"
-        return 0
-    fi
+# NOT IN USE: superseded by install_helix_from_source below which compiles the
+# latest Helix from source using Cargo instead of downloading a pre-built release.
+# install_helix() {
+#     if ! _want_install_cmd hx; then
+#         echo "✅ helix"
+#         return 0
+#     fi
+#
+#     local REPO="helix-editor/helix"
+#     local m os release_json ver
+#     m="$(uname -m)"
+#     os="$(uname -s)"
+#
+#     local auth=()
+#     if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+#         auth=(-H "Authorization: Bearer ***")
+#     elif [[ -n "${GH_TOKEN:-}" ]]; then
+#         auth=(-H "Authorization: Bearer ***")
+#     fi
+#
+#     release_json=$(curl -fsSL \
+#         -H "Accept: application/vnd.github+json" \
+#         -H "User-Agent: run_onchange-install-packages" \
+#         "${auth[@]}" \
+#         "https://api.github.com/repos/${REPO}/releases/latest")
+#
+#     ver=$(printf '%s' "$release_json" | jq -r '.tag_name')
+#     if [[ -z "$ver" || "$ver" == "null" ]]; then
+#         echo "❌ Failed to resolve helix release (GitHub API)." >&2
+#         return 1
+#     fi
+#
+#     echo "🌐 Installing helix ${ver}..."
+#
+#     # On x86_64 Debian/Ubuntu, prefer the official .deb package from GitHub.
+#     if [[ "$os" == Linux ]] && command -v apt-get >/dev/null 2>&1 \
+#        && [[ -f /etc/debian_version ]] && [[ "$m" == "x86_64" ]]; then
+#         local deb_file deb_url deb_path
+#         deb_file=$(printf '%s' "$release_json" | jq -r \
+#             '.assets[] | select(.name | endswith("_amd64.deb")) | .name' | head -n1)
+#         deb_url=$(printf '%s' "$release_json" | jq -r \
+#             '.assets[] | select(.name | endswith("_amd64.deb")) | .browser_download_url' | head -n1)
+#         if [[ -n "$deb_file" && -n "$deb_url" ]]; then
+#             deb_path=$(mktemp /tmp/helix-XXXXXX.deb)
+#             echo "⬇️  Downloading ${deb_file}..."
+#             if curl -fsSL -o "$deb_path" "$deb_url" \
+#                && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+#                   -qq -o Dpkg::Use-Pty=0 "$deb_path"; then
+#                 rm -f "$deb_path"
+#                 echo "✅ helix ${ver} installed"
+#                 return 0
+#             fi
+#             rm -f "$deb_path"
+#             echo "⚠️  .deb install failed, falling back to tarball..." >&2
+#         fi
+#     fi
+#
+#     # Tarball install — covers aarch64 (Raspberry Pi 4/5 with 64-bit OS) and x86_64 fallback.
+#     local asset_suffix
+#     case "${os}-${m}" in
+#         Linux-x86_64|Linux-amd64)
+#             asset_suffix="x86_64-linux.tar.xz" ;;
+#         Linux-aarch64|Linux-arm64)
+#             asset_suffix="aarch64-linux.tar.xz" ;;
+#         *)
+#             echo "❌ Unsupported OS/arch for helix: ${os} (${m})" >&2
+#             return 1
+#             ;;
+#     esac
+#
+#     local asset_name="helix-${ver}-${asset_suffix}"
+#     local asset_url
+#     asset_url=$(printf '%s' "$release_json" | jq -r --arg name "$asset_name" \
+#         '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
+#     if [[ -z "$asset_url" ]]; then
+#         echo "❌ No release asset named ${asset_name}" >&2
+#         return 1
+#     fi
+#
+#     # Install to /usr/local/lib/helix/ so the binary finds its runtime directory
+#     # alongside it (helix resolves runtime relative to its own real path).
+#     local install_dir="/usr/local/lib/helix"
+#     local tmpdir
+#     tmpdir=$(mktemp -d)
+#
+#     echo "⬇️  Downloading ${asset_name}..."
+#     if ! curl --progress-bar -L -o "${tmpdir}/${asset_name}" "$asset_url"; then
+#         rm -rf "$tmpdir"
+#         return 1
+#     fi
+#     tar -xJf "${tmpdir}/${asset_name}" -C "$tmpdir"
+#
+#     local extracted_dir="${tmpdir}/helix-${ver}-${asset_suffix%.tar.xz}"
+#     sudo rm -rf "$install_dir"
+#     sudo mv "$extracted_dir" "$install_dir"
+#     sudo chmod +x "${install_dir}/hx"
+#     sudo ln -sf "${install_dir}/hx" /usr/local/bin/hx
+#
+#     rm -rf "$tmpdir"
+#     echo "✅ helix ${ver} installed (runtime: ${install_dir}/runtime)"
+# }
 
-    local REPO="helix-editor/helix"
-    local m os release_json ver
-    m="$(uname -m)"
-    os="$(uname -s)"
-
-    local auth=()
-    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-        auth=(-H "Authorization: Bearer ***")
-    elif [[ -n "${GH_TOKEN:-}" ]]; then
-        auth=(-H "Authorization: Bearer ***")
-    fi
-
-    release_json=$(curl -fsSL \
-        -H "Accept: application/vnd.github+json" \
-        -H "User-Agent: run_onchange-install-packages" \
-        "${auth[@]}" \
-        "https://api.github.com/repos/${REPO}/releases/latest")
-
-    ver=$(printf '%s' "$release_json" | jq -r '.tag_name')
-    if [[ -z "$ver" || "$ver" == "null" ]]; then
-        echo "❌ Failed to resolve helix release (GitHub API)." >&2
-        return 1
-    fi
-
-    echo "🌐 Installing helix ${ver}..."
-
-    # On x86_64 Debian/Ubuntu, prefer the official .deb package from GitHub.
-    if [[ "$os" == Linux ]] && command -v apt-get >/dev/null 2>&1 \
-       && [[ -f /etc/debian_version ]] && [[ "$m" == "x86_64" ]]; then
-        local deb_file deb_url deb_path
-        deb_file=$(printf '%s' "$release_json" | jq -r \
-            '.assets[] | select(.name | endswith("_amd64.deb")) | .name' | head -n1)
-        deb_url=$(printf '%s' "$release_json" | jq -r \
-            '.assets[] | select(.name | endswith("_amd64.deb")) | .browser_download_url' | head -n1)
-        if [[ -n "$deb_file" && -n "$deb_url" ]]; then
-            deb_path=$(mktemp /tmp/helix-XXXXXX.deb)
-            echo "⬇️  Downloading ${deb_file}..."
-            if curl -fsSL -o "$deb_path" "$deb_url" \
-               && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                  -qq -o Dpkg::Use-Pty=0 "$deb_path"; then
-                rm -f "$deb_path"
-                echo "✅ helix ${ver} installed"
-                return 0
-            fi
-            rm -f "$deb_path"
-            echo "⚠️  .deb install failed, falling back to tarball..." >&2
+# Compile the latest Helix editor from source using Cargo.
+# Requires Rust/cargo to be installed before this function is called.
+# Source is cloned/updated at ~/projects/helix; the hx binary is placed in
+# ~/.cargo/bin/ by `cargo install` and the runtime directory is symlinked
+# into ~/.config/helix/runtime so Helix finds grammars and themes.
+install_helix_from_source() {
+    # Skip if hx is already present, unless it's the old pre-built release (25.07.1)
+    # which should be migrated to the compiled-from-source version.
+    if command -v hx >/dev/null 2>&1; then
+        local current_ver
+        current_ver=$(hx -V 2>/dev/null | awk '{print $2}')
+        if [[ "$current_ver" != "25.07.1" ]] && [[ "${INSTALL_FORCE:-0}" != 1 ]] && [[ "${UPDATE_ONLY:-0}" != 1 ]]; then
+            echo "✅ helix"
+            return 0
         fi
     fi
 
-    # Tarball install — covers aarch64 (Raspberry Pi 4/5 with 64-bit OS) and x86_64 fallback.
-    local asset_suffix
-    case "${os}-${m}" in
-        Linux-x86_64|Linux-amd64)
-            asset_suffix="x86_64-linux.tar.xz" ;;
-        Linux-aarch64|Linux-arm64)
-            asset_suffix="aarch64-linux.tar.xz" ;;
-        *)
-            echo "❌ Unsupported OS/arch for helix: ${os} (${m})" >&2
-            return 1
-            ;;
-    esac
-
-    local asset_name="helix-${ver}-${asset_suffix}"
-    local asset_url
-    asset_url=$(printf '%s' "$release_json" | jq -r --arg name "$asset_name" \
-        '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
-    if [[ -z "$asset_url" ]]; then
-        echo "❌ No release asset named ${asset_name}" >&2
+    local cargo_cmd
+    cargo_cmd=$(command -v cargo 2>/dev/null || true)
+    [[ -z "$cargo_cmd" ]] && [[ -x "${HOME}/.cargo/bin/cargo" ]] && cargo_cmd="${HOME}/.cargo/bin/cargo"
+    if [[ -z "$cargo_cmd" ]]; then
+        echo "❌ cargo is not available; cannot build helix from source" >&2
         return 1
     fi
 
-    # Install to /usr/local/lib/helix/ so the binary finds its runtime directory
-    # alongside it (helix resolves runtime relative to its own real path).
-    local install_dir="/usr/local/lib/helix"
-    local tmpdir
-    tmpdir=$(mktemp -d)
-
-    echo "⬇️  Downloading ${asset_name}..."
-    if ! curl --progress-bar -L -o "${tmpdir}/${asset_name}" "$asset_url"; then
-        rm -rf "$tmpdir"
-        return 1
+    # Migrate from old pre-built release install: remove /usr/local/lib/helix and
+    # the symlink at /usr/local/bin/hx that pointed to it.
+    if [[ -d /usr/local/lib/helix ]]; then
+        echo "🧹 Removing old pre-built helix installation from /usr/local/lib/helix..."
+        sudo rm -rf /usr/local/lib/helix
     fi
-    tar -xJf "${tmpdir}/${asset_name}" -C "$tmpdir"
+    if [[ -L /usr/local/bin/hx ]]; then
+        echo "🧹 Removing old /usr/local/bin/hx symlink..."
+        sudo rm -f /usr/local/bin/hx
+    fi
 
-    local extracted_dir="${tmpdir}/helix-${ver}-${asset_suffix%.tar.xz}"
-    sudo rm -rf "$install_dir"
-    sudo mv "$extracted_dir" "$install_dir"
-    sudo chmod +x "${install_dir}/hx"
-    sudo ln -sf "${install_dir}/hx" /usr/local/bin/hx
+    local src_dir="${HOME}/projects/helix"
 
-    rm -rf "$tmpdir"
-    echo "✅ helix ${ver} installed (runtime: ${install_dir}/runtime)"
+    local commit_before=""
+    if [[ -d "${src_dir}/.git" ]]; then
+        commit_before=$(git -C "$src_dir" rev-parse HEAD 2>/dev/null || true)
+        echo "🔀 Updating helix source at ${src_dir}..."
+        git -C "$src_dir" pull --ff-only
+    else
+        echo "🔀 Cloning helix source into ${src_dir}..."
+        mkdir -p "${HOME}/projects"
+        git clone https://github.com/helix-editor/helix "$src_dir"
+    fi
+
+    local commit_after
+    commit_after=$(git -C "$src_dir" rev-parse HEAD 2>/dev/null || true)
+
+    # Skip compilation if the repo has not changed and hx is already installed.
+    if [[ -n "$commit_before" ]] && [[ "$commit_before" == "$commit_after" ]] \
+        && command -v hx >/dev/null 2>&1 && [[ "${INSTALL_FORCE:-0}" != 1 ]]; then
+        local ver
+        ver=$(git -C "$src_dir" describe --tags --abbrev=0 2>/dev/null || echo "unknown")
+        mkdir -p "${HOME}/.config/helix"
+        ln -Tsf "${src_dir}/runtime" "${HOME}/.config/helix/runtime"
+        echo "✅ helix ${ver} (no changes in repository, skipping recompile)"
+        return 0
+    fi
+
+    echo "🦀 Compiling helix (optimized)..."
+    (
+        cd "$src_dir"
+        "$cargo_cmd" install \
+            --profile opt \
+            --config 'build.rustflags="-C target-cpu=native"' \
+            --path helix-term \
+            --locked
+    )
+
+    # Symlink the runtime directory so Helix finds grammars and themes.
+    mkdir -p "${HOME}/.config/helix"
+    ln -Tsf "${src_dir}/runtime" "${HOME}/.config/helix/runtime"
+
+    local ver
+    ver=$(git -C "$src_dir" describe --tags --abbrev=0 2>/dev/null || echo "unknown")
+    echo "✅ helix ${ver} compiled and installed (runtime: ${src_dir}/runtime)"
 }
 
 install_scooter() {
@@ -1028,13 +1130,13 @@ main() {
     install_eza
     install_fastfetch
     install_tv
-    install_helix
     install_scooter
     install_amoxide
     install_go
     install_go_packages
     install_rust
     install_cargo_packages
+    install_helix_from_source
     install_task
     install_firacode_nerd_font_if_gui
     install_jetbrains_mono_font_if_gui
