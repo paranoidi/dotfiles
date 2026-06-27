@@ -41,7 +41,7 @@ GO_PACKAGES=(
     github.com/jesseduffield/lazydocker@latest
     github.com/jesseduffield/lazygit@latest
     github.com/muesli/duf@latest
-    https://github.com/antonmedv/fx@latest
+    github.com/antonmedv/fx@latest
 )
 
 # Python tools installed with `uv tool install` after uv is available.
