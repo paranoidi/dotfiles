@@ -6,7 +6,7 @@ truncation_symbol = "…"
 format = "[](fg:black)[$branch(:$remote_branch)]($style)[](fg:black bg:black)[](fg:green bg:black)[$symbol](fg:black bg:green)[](fg:green) "
 
 [git_status]
-conflicted = "⚡"
+conflicted = "😱"
 ahead = "[⇡${count}](green)"
 behind = "⇣${count}"
 modified = " ${count}"

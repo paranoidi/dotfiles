@@ -1,4 +1,12 @@
 function pi --description "🧠 Run pi with latest Node via nvm"
+    if test -z "$TMUX"
+        set -l escaped (string join ' ' (string escape -- $argv))
+        tmux new-session -d -s main 2>/dev/null; or true
+        tmux new-window -t main: "fish -c 'pi $escaped; exec fish'"
+        exec tmux attach-session -t main
+        return
+    end
+
     nvm use latest >/dev/null 2>&1
     if test $status -ne 0
         echo "⬇️  Node 'latest' not installed, running nvm install latest …" >&2
