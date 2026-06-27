@@ -152,8 +152,6 @@ purge_neofetch() {
         echo "🗑️  Removing neofetch (deprecated)..."
         _run_apt purge -y -qq neofetch
         echo "✅ neofetch purged"
-    else
-        echo "✅ neofetch (already removed)"
     fi
 }
 
@@ -734,6 +732,28 @@ install_uv_tools() {
     fi
 }
 
+# Run `cargo install <package>`; suppress the noisy "already installed" output
+# and print a single ✅/❌ line.  Passes extra args straight to cargo.
+# Usage: _cargo_install <cargo-cmd> <package> [extra cargo args...]
+_cargo_install() {
+    local cargo_cmd=$1 package=$2
+    shift 2
+    local output rc
+    output=$("$cargo_cmd" install "$package" "$@" 2>&1)
+    rc=$?
+    if [[ $rc -eq 0 ]]; then
+        if grep -q "Ignored package" <<< "$output"; then
+            echo "✅ ${package}"
+        else
+            echo "✅ Installed ${package}"
+        fi
+    else
+        printf '%s\n' "$output" >&2
+        echo "❌ Failed to install ${package}" >&2
+        return 1
+    fi
+}
+
 install_rust() {
     local cargo_cmd
     cargo_cmd=$(command -v cargo 2>/dev/null || true)
@@ -757,20 +777,15 @@ install_cargo_packages() {
         return 1
     fi
 
-    local package command_name failed_packages=()
+    local package failed_packages=()
     for package in "${CARGO_PACKAGES[@]}"; do
-        command_name="${package}"
         if [[ "${INSTALL_FORCE:-0}" != 1 ]] && [[ "${UPDATE_ONLY:-0}" != 1 ]] \
-           && command -v "$command_name" >/dev/null 2>&1; then
-            echo "✅ ${command_name}"
+           && command -v "$package" >/dev/null 2>&1; then
+            echo "✅ ${package}"
             continue
         fi
 
-        echo "🦀 Installing ${package}..."
-        if "$cargo_cmd" install "$package"; then
-            echo "✅ Installed ${package}"
-        else
-            echo "❌ Failed to install ${package}" >&2
+        if ! _cargo_install "$cargo_cmd" "$package"; then
             failed_packages+=("$package")
         fi
     done
