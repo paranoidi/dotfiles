@@ -119,13 +119,10 @@ _want_install_apt_pkg() {
     ! _apt_pkg_is_installed "$1"
 }
 
-# browser_download_url for an asset on the latest GitHub release (public API; no gh CLI).
-# Usage: _github_latest_release_asset_url owner/repo exact_asset_filename
-# Optional: GITHUB_TOKEN or GH_TOKEN raises REST rate limits.
-_github_latest_release_asset_url() {
+# Returns the GitHub latest-release JSON for owner/repo.
+# Handles GITHUB_TOKEN / GH_TOKEN auth transparently.
+_github_release_json() {
     local repo=$1
-    local asset_name=$2
-    local api_url="https://api.github.com/repos/${repo}/releases/latest"
     local auth=()
     if [[ -n "${GITHUB_TOKEN:-}" ]]; then
         auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
@@ -136,10 +133,18 @@ _github_latest_release_asset_url() {
         -H "Accept: application/vnd.github+json" \
         -H "User-Agent: run_onchange-install-packages" \
         "${auth[@]}" \
-        "$api_url" \
-        | jq -r --arg name "$asset_name" \
-            '.assets[] | select(.name == $name) | .browser_download_url' \
-        | head -n1
+        "https://api.github.com/repos/${repo}/releases/latest"
+}
+
+# Downloads a .deb from $1 and installs it via apt-get; cleans up on success or failure.
+_install_deb() {
+    local url=$1 tmp
+    tmp=$(mktemp /tmp/pkg-XXXXXX.deb)
+    curl -fsSL -o "$tmp" "$url" || { rm -f "$tmp"; return 1; }
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Use-Pty=0 "$tmp"
+    local rc=$?
+    rm -f "$tmp"
+    return $rc
 }
 
 purge_neofetch() {
@@ -194,10 +199,6 @@ install_apt_packages() {
                 failed_packages+=("$package")
             fi
         done
-        # Redundant with per-package messages
-        # if [ ${#unavailable_packages[@]} -gt 0 ]; then
-        #     echo "⚠️  Packages not available in apt cache: ${unavailable_packages[*]}" >&2
-        # fi
         if [ ${#failed_packages[@]} -gt 0 ]; then
             echo "⚠️  Packages that failed to install: ${failed_packages[*]}" >&2
         fi
@@ -253,7 +254,6 @@ install_fastfetch() {
         return 0
     fi
 
-    local REPO="fastfetch-cli/fastfetch"
     local m os ver deb_arch
     m="$(uname -m)"
     os="$(uname -s)"
@@ -268,20 +268,8 @@ install_fastfetch() {
             ;;
     esac
 
-    local auth=()
-    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-        auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
-    elif [[ -n "${GH_TOKEN:-}" ]]; then
-        auth=(-H "Authorization: Bearer ${GH_TOKEN}")
-    fi
-
     local release_json
-    release_json=$(curl -fsSL \
-        -H "Accept: application/vnd.github+json" \
-        -H "User-Agent: run_onchange-install-packages" \
-        "${auth[@]}" \
-        "https://api.github.com/repos/${REPO}/releases/latest")
-
+    release_json=$(_github_release_json "fastfetch-cli/fastfetch")
     ver=$(printf '%s' "$release_json" | jq -r '.tag_name')
     if [[ -z "$ver" || "$ver" == "null" ]]; then
         echo "❌ Failed to resolve fastfetch release (GitHub API)." >&2
@@ -290,54 +278,37 @@ install_fastfetch() {
 
     echo "🌐 Installing fastfetch ${ver} from GitHub..."
 
-    local deb_file deb_url deb_path
+    # On Debian/Ubuntu try .deb first (polyfilled for old glibc, then regular).
     if [[ "$os" == Linux ]] && command -v apt-get >/dev/null 2>&1 && [[ -f /etc/debian_version ]]; then
-        # Prefer -polyfilled variant (works on older glibc like RasPi OS / Debian 11)
-        # Falls back to regular if polyfilled isn't available for this arch.
-        deb_file="fastfetch-linux-${deb_arch}-polyfilled.deb"
-        deb_url=$(printf '%s' "$release_json" | jq -r --arg name "$deb_file" \
-            '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
-        if [[ -z "$deb_url" ]]; then
-            deb_file="fastfetch-linux-${deb_arch}.deb"
+        local deb_file deb_url
+        for deb_file in "fastfetch-linux-${deb_arch}-polyfilled.deb" "fastfetch-linux-${deb_arch}.deb"; do
             deb_url=$(printf '%s' "$release_json" | jq -r --arg name "$deb_file" \
                 '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
-        fi
+            if [[ -n "$deb_url" ]]; then break; fi
+        done
 
-        if [[ -z "$deb_url" ]]; then
-            echo "⚠️  No .deb release asset named ${deb_file}, falling back to tarball..." >&2
-        else
-            deb_path=$(mktemp /tmp/fastfetch-XXXXXX.deb)
+        if [[ -n "$deb_url" ]]; then
             echo "⬇️  Downloading ${deb_file}..."
-            if curl -fsSL -o "$deb_path" "$deb_url"; then
-                if sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                    -qq -o Dpkg::Use-Pty=0 "$deb_path"; then
-                    rm -f "$deb_path"
-                    echo "✅ fastfetch ${ver} installed"
-                    return 0
-                fi
-                rm -f "$deb_path"
-                echo "⚠️  .deb install failed, falling back to tarball..." >&2
-            else
-                rm -f "$deb_path"
-                echo "⚠️  Download failed for ${deb_file}, falling back to tarball..." >&2
+            if _install_deb "$deb_url"; then
+                echo "✅ fastfetch ${ver} installed"
+                return 0
             fi
+            echo "⚠️  .deb install failed, falling back to tarball..." >&2
+        else
+            echo "⚠️  No .deb release asset for ${deb_arch}, falling back to tarball..." >&2
         fi
     fi
 
-    # Fallback: tarball install (non-Debian systems or .deb path failed)
+    # Fallback: tarball install
     local tar_file tar_url tmpdir
-    # Prefer -polyfilled variant for old glibc compatibility, fall back to regular
-    tar_file="fastfetch-linux-${deb_arch}-polyfilled.tar.gz"
-    tar_url=$(printf '%s' "$release_json" | jq -r --arg name "$tar_file" \
-        '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
-    if [[ -z "$tar_url" ]]; then
-        tar_file="fastfetch-linux-${deb_arch}.tar.gz"
+    for tar_file in "fastfetch-linux-${deb_arch}-polyfilled.tar.gz" "fastfetch-linux-${deb_arch}.tar.gz"; do
         tar_url=$(printf '%s' "$release_json" | jq -r --arg name "$tar_file" \
             '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
-    fi
+        if [[ -n "$tar_url" ]]; then break; fi
+    done
 
     if [[ -z "$tar_url" ]]; then
-        echo "❌ No release asset named ${tar_file} either" >&2
+        echo "❌ No release asset found for fastfetch ${deb_arch}" >&2
         return 1
     fi
 
@@ -402,12 +373,10 @@ install_tv() {
         return 1
     fi
     echo "🌐 Installing tv..."
-    # Upstream install.sh is chatty (banner, [INFO], curl -LO progress, verbose dpkg).
-    # Debian/Ubuntu: download .deb with silent curl and install via apt-get -qq.
-    local github_latest='https://api.github.com/repos/alexpasmantier/television/releases/latest'
-    local ver os m deb_arch deb_file url deb_path binary_target dirname tarball install_dir tmpdir
 
-    ver=$(curl -fsSL "$github_latest" | grep '"tag_name":' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
+    local release_json ver os m
+    release_json=$(_github_release_json "alexpasmantier/television")
+    ver=$(printf '%s' "$release_json" | jq -r '.tag_name')
     if [[ -z "$ver" ]]; then
         echo "❌ Failed to resolve television release (GitHub API)." >&2
         return 1
@@ -417,6 +386,7 @@ install_tv() {
     m=$(uname -m)
 
     if [[ "$os" == Linux ]] && command -v apt-get >/dev/null 2>&1 && [[ -f /etc/debian_version ]]; then
+        local deb_arch deb_file url
         case "$m" in
             x86_64|amd64) deb_arch=x86_64-unknown-linux-musl ;;
             aarch64|arm64) deb_arch=aarch64-unknown-linux-gnu ;;
@@ -427,20 +397,16 @@ install_tv() {
         esac
         deb_file="tv-${ver}-${deb_arch}.deb"
         url="https://github.com/alexpasmantier/television/releases/download/${ver}/${deb_file}"
-        deb_path=$(mktemp /tmp/tv-XXXXXX.deb)
-        curl -fsSL -o "$deb_path" "$url" || { rm -f "$deb_path"; return 1; }
-        if ! sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            -qq -o Dpkg::Use-Pty=0 "$deb_path"; then
-            rm -f "$deb_path"
-            echo "❌ apt failed to install television .deb" >&2
-            return 1
+        if _install_deb "$url"; then
+            echo "✅ tv ${ver} installed"
+            return 0
         fi
-        rm -f "$deb_path"
-        echo "✅ tv ${ver} installed"
-        return 0
+        echo "❌ apt failed to install television .deb" >&2
+        return 1
     fi
 
-    install_dir=/usr/local/bin
+    local binary_target dirname tarball url tmpdir
+    local install_dir=/usr/local/bin
     case "${os}-${m}" in
         Linux-x86_64|Linux-amd64) binary_target=x86_64-unknown-linux-musl ;;
         Linux-aarch64|Linux-arm64) binary_target=aarch64-unknown-linux-gnu ;;
@@ -461,108 +427,6 @@ install_tv() {
     rm -rf "$tmpdir"
     echo "✅ tv ${ver} installed"
 }
-
-# NOT IN USE: superseded by install_helix_from_source below which compiles the
-# latest Helix from source using Cargo instead of downloading a pre-built release.
-# install_helix() {
-#     if ! _want_install_cmd hx; then
-#         echo "✅ helix"
-#         return 0
-#     fi
-#
-#     local REPO="helix-editor/helix"
-#     local m os release_json ver
-#     m="$(uname -m)"
-#     os="$(uname -s)"
-#
-#     local auth=()
-#     if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-#         auth=(-H "Authorization: Bearer ***")
-#     elif [[ -n "${GH_TOKEN:-}" ]]; then
-#         auth=(-H "Authorization: Bearer ***")
-#     fi
-#
-#     release_json=$(curl -fsSL \
-#         -H "Accept: application/vnd.github+json" \
-#         -H "User-Agent: run_onchange-install-packages" \
-#         "${auth[@]}" \
-#         "https://api.github.com/repos/${REPO}/releases/latest")
-#
-#     ver=$(printf '%s' "$release_json" | jq -r '.tag_name')
-#     if [[ -z "$ver" || "$ver" == "null" ]]; then
-#         echo "❌ Failed to resolve helix release (GitHub API)." >&2
-#         return 1
-#     fi
-#
-#     echo "🌐 Installing helix ${ver}..."
-#
-#     # On x86_64 Debian/Ubuntu, prefer the official .deb package from GitHub.
-#     if [[ "$os" == Linux ]] && command -v apt-get >/dev/null 2>&1 \
-#        && [[ -f /etc/debian_version ]] && [[ "$m" == "x86_64" ]]; then
-#         local deb_file deb_url deb_path
-#         deb_file=$(printf '%s' "$release_json" | jq -r \
-#             '.assets[] | select(.name | endswith("_amd64.deb")) | .name' | head -n1)
-#         deb_url=$(printf '%s' "$release_json" | jq -r \
-#             '.assets[] | select(.name | endswith("_amd64.deb")) | .browser_download_url' | head -n1)
-#         if [[ -n "$deb_file" && -n "$deb_url" ]]; then
-#             deb_path=$(mktemp /tmp/helix-XXXXXX.deb)
-#             echo "⬇️  Downloading ${deb_file}..."
-#             if curl -fsSL -o "$deb_path" "$deb_url" \
-#                && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-#                   -qq -o Dpkg::Use-Pty=0 "$deb_path"; then
-#                 rm -f "$deb_path"
-#                 echo "✅ helix ${ver} installed"
-#                 return 0
-#             fi
-#             rm -f "$deb_path"
-#             echo "⚠️  .deb install failed, falling back to tarball..." >&2
-#         fi
-#     fi
-#
-#     # Tarball install — covers aarch64 (Raspberry Pi 4/5 with 64-bit OS) and x86_64 fallback.
-#     local asset_suffix
-#     case "${os}-${m}" in
-#         Linux-x86_64|Linux-amd64)
-#             asset_suffix="x86_64-linux.tar.xz" ;;
-#         Linux-aarch64|Linux-arm64)
-#             asset_suffix="aarch64-linux.tar.xz" ;;
-#         *)
-#             echo "❌ Unsupported OS/arch for helix: ${os} (${m})" >&2
-#             return 1
-#             ;;
-#     esac
-#
-#     local asset_name="helix-${ver}-${asset_suffix}"
-#     local asset_url
-#     asset_url=$(printf '%s' "$release_json" | jq -r --arg name "$asset_name" \
-#         '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
-#     if [[ -z "$asset_url" ]]; then
-#         echo "❌ No release asset named ${asset_name}" >&2
-#         return 1
-#     fi
-#
-#     # Install to /usr/local/lib/helix/ so the binary finds its runtime directory
-#     # alongside it (helix resolves runtime relative to its own real path).
-#     local install_dir="/usr/local/lib/helix"
-#     local tmpdir
-#     tmpdir=$(mktemp -d)
-#
-#     echo "⬇️  Downloading ${asset_name}..."
-#     if ! curl --progress-bar -L -o "${tmpdir}/${asset_name}" "$asset_url"; then
-#         rm -rf "$tmpdir"
-#         return 1
-#     fi
-#     tar -xJf "${tmpdir}/${asset_name}" -C "$tmpdir"
-#
-#     local extracted_dir="${tmpdir}/helix-${ver}-${asset_suffix%.tar.xz}"
-#     sudo rm -rf "$install_dir"
-#     sudo mv "$extracted_dir" "$install_dir"
-#     sudo chmod +x "${install_dir}/hx"
-#     sudo ln -sf "${install_dir}/hx" /usr/local/bin/hx
-#
-#     rm -rf "$tmpdir"
-#     echo "✅ helix ${ver} installed (runtime: ${install_dir}/runtime)"
-# }
 
 # Compile the latest Helix editor from source using Cargo.
 # Requires Rust/cargo to be installed before this function is called.
@@ -652,32 +516,9 @@ install_scooter() {
         return 0
     fi
 
-    local REPO="thomasschafer/scooter"
-    local m os release_json ver
-
+    local m os
     m="$(uname -m)"
     os="$(uname -s)"
-
-    local auth=()
-    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-        auth=(-H "Authorization: Bearer ***")
-    elif [[ -n "${GH_TOKEN:-}" ]]; then
-        auth=(-H "Authorization: Bearer ***")
-    fi
-
-    release_json=$(curl -fsSL \
-        -H "Accept: application/vnd.github+json" \
-        -H "User-Agent: run_onchange-install-packages" \
-        "${auth[@]}" \
-        "https://api.github.com/repos/${REPO}/releases/latest")
-
-    ver=$(printf '%s' "$release_json" | jq -r '.tag_name')
-    if [[ -z "$ver" || "$ver" == "null" ]]; then
-        echo "❌ Failed to resolve scooter release (GitHub API)." >&2
-        return 1
-    fi
-
-    echo "🌐 Installing scooter ${ver}..."
 
     local asset_suffix
     case "${os}-${m}" in
@@ -689,6 +530,16 @@ install_scooter() {
             echo "❌ Unsupported OS/arch for scooter: ${os} (${m})" >&2
             return 1 ;;
     esac
+
+    local release_json ver
+    release_json=$(_github_release_json "thomasschafer/scooter")
+    ver=$(printf '%s' "$release_json" | jq -r '.tag_name')
+    if [[ -z "$ver" || "$ver" == "null" ]]; then
+        echo "❌ Failed to resolve scooter release (GitHub API)." >&2
+        return 1
+    fi
+
+    echo "🌐 Installing scooter ${ver}..."
 
     local asset_name="scooter-${ver}-${asset_suffix}.tar.gz"
     local asset_url
@@ -707,19 +558,13 @@ install_scooter() {
     tmpdir=$(mktemp -d)
 
     echo "⬇️  Downloading ${asset_name}..."
-    if ! curl --progress-bar -L -o "${tmpdir}/${asset_name}" "$asset_url"; then
-        rm -rf "$tmpdir"
-        return 1
-    fi
-
+    curl -fsSL -o "${tmpdir}/${asset_name}" "$asset_url" || { rm -rf "$tmpdir"; return 1; }
     tar -xzf "${tmpdir}/${asset_name}" -C "$tmpdir"
 
-    # The tarball contains a single directory: scooter-${ver}-${asset_suffix}/scooter
     local extracted_dir="${tmpdir}/scooter-${ver}-${asset_suffix}"
-    if [[ -d "$extracted_dir" ]] && [[ -f "${extracted_dir}/scooter" ]]; then
+    if [[ -f "${extracted_dir}/scooter" ]]; then
         mv "${extracted_dir}/scooter" "${install_dir}/scooter"
     elif [[ -f "${tmpdir}/scooter" ]]; then
-        # Some tarballs extract flat (no containing directory)
         mv "${tmpdir}/scooter" "${install_dir}/scooter"
     else
         echo "❌ Could not find scooter binary in extracted archive" >&2
@@ -976,67 +821,6 @@ install_jetbrains_mono_font_if_gui() {
     echo "✅ JetBrainsMono installed"
 }
 
-install_zellij() {
-    if ! _want_install_cmd zellij; then
-        echo "✅ zellij"
-        return 0
-    fi
-    local INSTALL_DIR="${INSTALL_DIR:-"$HOME/.local/bin"}"
-    local REPO="zellij-org/zellij"
-
-    local zellij_linux_triple
-    local _m
-    _m="$(uname -m)"
-    if [ "$_m" = "x86_64" ]; then
-        zellij_linux_triple="x86_64-unknown-linux-musl"
-    elif [ "$_m" = "aarch64" ] || [ "$_m" = "arm64" ]; then
-        zellij_linux_triple="aarch64-unknown-linux-musl"
-    else
-        echo "❌ Unsupported machine type '${_m}' for prebuilt zellij Linux musl." >&2
-        echo "ℹ️ Supported: x86_64, aarch64 — https://github.com/${REPO}/releases" >&2
-        exit 1
-    fi
-    local PATTERN="zellij-no-web-${zellij_linux_triple}.tar.gz"
-    local REQUIRED_TOOLS=(jq curl tar)
-
-    local tool
-    for tool in "${REQUIRED_TOOLS[@]}"; do
-      if ! command -v "$tool" >/dev/null 2>&1; then
-        echo "❌ Missing required command: ${tool}" >&2
-        exit 1
-      fi
-    done
-
-    mkdir -p "$INSTALL_DIR"
-
-    local URL
-    URL="$(_github_latest_release_asset_url "$REPO" "$PATTERN")"
-
-    if [[ -z "$URL" ]]; then
-      echo "❌ No release asset named ${PATTERN}" >&2
-      exit 1
-    fi
-
-    echo "🌐 Downloading ${PATTERN}..."
-    curl --progress-bar -L -o "$PATTERN" "$URL"
-
-    echo "💾 Extracting and installing to ${INSTALL_DIR}..."
-    tar -xzf "$PATTERN"
-
-    mv zellij "$INSTALL_DIR/"
-    chmod +x "$INSTALL_DIR/zellij"
-
-    rm "$PATTERN"
-
-    local ver
-    ver="$("$INSTALL_DIR/zellij" --version 2>/dev/null || true)"
-    if [[ -n "$ver" ]]; then
-      echo "✅ Installed ${ver}"
-    else
-      echo "⚠️  Installed zellij in ${INSTALL_DIR}. Unable to determine version."
-    fi
-}
-
 install_task() {
     if ! _want_install_cmd task; then
         echo "✅ task (taskfile.dev)"
@@ -1141,7 +925,6 @@ main() {
     install_task
     install_firacode_nerd_font_if_gui
     install_jetbrains_mono_font_if_gui
-    # install_zellij -- probably sticking with tmux
     change_shell_to_fish
 }
 
