@@ -28,6 +28,7 @@ APT_PACKAGES=(
     curl wget git mc task-spooler tmux git-delta
     fish fd-find bat neovim gh jq unzip
     ripgrep silversearcher-ag sysstat
+    build-essential
 )
 
 # Additional packages installed only on systems with a GUI (X11 / Wayland).
