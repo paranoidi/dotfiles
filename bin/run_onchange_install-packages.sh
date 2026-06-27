@@ -48,6 +48,7 @@ GO_PACKAGES=(
 # Python tools installed with `uv tool install` after uv is available.
 UV_TOOLS=(
     tldr
+    pyright
 )
 
 # Cargo (Rust) packages installed with `cargo install`.
@@ -468,7 +469,7 @@ install_helix_from_source() {
     if [[ -d "${src_dir}/.git" ]]; then
         commit_before=$(git -C "$src_dir" rev-parse HEAD 2>/dev/null || true)
         echo "🔀 Updating helix source at ${src_dir}..."
-        git -C "$src_dir" pull --ff-only
+        git -C "$src_dir" pull --ff-only 2>&1 | grep -v "Already up to date" || true
     else
         echo "🔀 Cloning helix source into ${src_dir}..."
         mkdir -p "${HOME}/projects"
@@ -716,6 +717,17 @@ install_uv_tools() {
         if ! _want_install_cmd "$tool"; then
             echo "✅ ${tool}"
             continue
+        fi
+        if [[ "${UPDATE_ONLY:-0}" == 1 ]] && command -v "$tool" >/dev/null 2>&1; then
+            echo "📦 Upgrading ${tool} via uv..."
+            if "$uv_bin" tool upgrade "$tool" &>/dev/null; then
+                echo "✅ ${tool} upgraded"
+                continue
+            else
+                echo "⚠️  uv tool upgrade ${tool} failed (trying install...)"
+                # ponytail: upgrade can fail if uv doesn't track the tool (e.g. non-uv install).
+                # Fall back to install — same result, just clobbers the shim.
+            fi
         fi
         echo "📦 Installing ${tool} via uv..."
         if "$uv_bin" tool install "$tool"; then
