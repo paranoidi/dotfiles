@@ -20,7 +20,8 @@ command_icon() {
         fish)                   printf '🐟' ;;
         bash)                   printf '😼' ;;
         python3|python|uv|pip)  printf '🐍' ;;
-        hermes|claude)          printf '🧠' ;;
+        claude)                 printf '🧠' ;;
+        hermes)                 printf '🤖' ;;
         ruby)                   printf '💎' ;;
         perl)                   printf '🐪' ;;
         git)                    printf '🔀' ;;

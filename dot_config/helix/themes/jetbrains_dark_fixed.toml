@@ -17,3 +17,6 @@ inherits = "jetbrains_dark"
 
 # Hilight symbols
 "ui.highlight" = { bg = "#394143" }
+
+"hint" = "#c8a000"
+"diagnostic.hint" = { fg = "#c8a000" }
