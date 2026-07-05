@@ -1,0 +1,6 @@
+gui:
+  sidePanelWidth: 0.45
+  skipRewordInEditorWarning: true
+  expandFocusedSidePanel: true
+  shrinkSidePanelsToContent: true
+  showCommandLog: false

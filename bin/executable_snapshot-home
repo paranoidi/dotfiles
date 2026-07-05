@@ -11,21 +11,12 @@ SERVICE=/etc/systemd/system/home-snapshot.service
 SNAPDIR=/home/.snapshots
 
 # ── Emoji helpers ──────────────────────────────────────────────────────────
-ok()    { echo "✅ $*"; }
-info()  { echo "ℹ️  $*"; }
-warn()  { echo "⚠️  $*"; }
-err()   { echo "❌ $*" >&2; }
-header(){ echo; echo "🔧 $*"; }
-sub()   { echo "  📦 $*"; }
-arrow() { echo "  ➜ $*"; }
-rocket(){ echo "🚀 $*"; }
-memo()  { echo "📝 $*"; }
-check() { echo "🔍 $*"; }
-guard() { echo "🛡️  $*"; }
-clean() { echo "🧹 $*"; }
-done_clean(){ echo "✨ $*"; }
-dir()   { echo "📁 $*"; }
-star()  { echo "🌟 $*"; }
+ok()     { echo "✅ $*"; }
+info()   { echo "   $*"; }
+check()  { echo "🔍 $*"; }
+err()    { echo "❌ $*" >&2; }
+header() { echo; echo "🔧 $*"; }
+save()   { echo "💾 $*"; }   # creating files / snapshots
 
 # ── Detection ──────────────────────────────────────────────────────────────
 is_installed() { [[ -f "$HELPER" ]] && [[ -f "$SERVICE" ]]; }
@@ -47,7 +38,7 @@ need() {
 
 check_btrfs() {
   header "Checking /home"
-  check "filesystem type…"
+  check "Filesystem type…"
   fstype="$(findmnt -n -o FSTYPE /home || true)"
   if [[ "$fstype" != "btrfs" ]]; then
     err "/home is not mounted as btrfs (current: ${fstype:-unknown})"
@@ -55,7 +46,7 @@ check_btrfs() {
   fi
   ok "/home is btrfs"
 
-  check "btrfs subvolume…"
+  check "Btrfs subvolume…"
   if ! btrfs subvolume show /home >/dev/null 2>&1; then
     err "/home is not a Btrfs subvolume"
     info "/home must be its own subvolume for this setup."
@@ -72,7 +63,7 @@ do_snapshot() {
     exit 1
   fi
 
-  rocket "Taking a manual snapshot…"
+  save "Taking a manual snapshot…"
   exec sudo "$HELPER" "manual-"
 }
 
@@ -103,21 +94,21 @@ do_install() {
     fi
     ok "Using existing $SNAPDIR"
   else
-    sub "Creating $SNAPDIR…"
+    save "Creating $SNAPDIR…"
     install -d -m 755 "$SNAPDIR"
     ok "Created $SNAPDIR"
   fi
 
   # Helper script
   header "Helper script"
-  sub "Installing to $HELPER…"
+  save "Installing to $HELPER…"
   install -d -m 755 /usr/local/sbin
   cat > "$HELPER" <<'HELPEREOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
 SNAPDIR=/home/.snapshots
-KEEP=30
+KEEP_DAYS=30
 LOCK=/run/home-snapshot.lock
 
 BTRFS="$(command -v btrfs)"
@@ -135,24 +126,22 @@ exec 9>"$LOCK"
 "$BTRFS" subvolume snapshot -r /home "$SNAPDIR/$NAME"
 
 mapfile -t snaps < <(
-  find "$SNAPDIR" -mindepth 1 -maxdepth 1 -printf '%f\n' \
+  find "$SNAPDIR" -mindepth 1 -maxdepth 1 -not -name 'keep-*' -printf '%f\n' \
     | sort || true
 )
 
-excess=$((${#snaps[@]} - KEEP))
-if (( excess > 0 )); then
-  for old in "${snaps[@]:0:excess}"; do
-    "$BTRFS" subvolume delete "$SNAPDIR/$old"
-  done
-fi
+cutoff="$(date -d "$KEEP_DAYS days ago" +%Y-%m-%d)"
+for snap in "${snaps[@]}"; do
+  [[ $snap =~ ([0-9]{4}-[0-9]{2}-[0-9]{2}) ]] || continue   # ponytail: no date in name → never prune
+  [[ "${BASH_REMATCH[1]}" < "$cutoff" ]] && "$BTRFS" subvolume delete "$SNAPDIR/$snap"
+done
 HELPEREOF
   chown root:root "$HELPER"
   chmod 755 "$HELPER"
-  ok "Helper installed"
 
   # Systemd unit
   header "Systemd service"
-  sub "Installing $SERVICE…"
+  save "Installing $SERVICE…"
   cat > "$SERVICE" <<'SERVICEEOF'
 [Unit]
 Description=Create read-only Btrfs snapshot of /home at boot
@@ -178,7 +167,7 @@ SERVICEEOF
   INSTALL_USER="${SUDO_USER:-$(id -un)}"
   SUDOERS_FILE=/etc/sudoers.d/home-snapshot
   if [[ -f "$SUDOERS_FILE" ]]; then
-    guard "Backing up existing $SUDOERS_FILE → ${SUDOERS_FILE}.bak"
+    save "Backing up existing $SUDOERS_FILE → ${SUDOERS_FILE}.bak"
     cp -a "$SUDOERS_FILE" "${SUDOERS_FILE}.bak"
   fi
   install -m 440 /dev/stdin "$SUDOERS_FILE" <<SUDOERSEOF
@@ -189,7 +178,7 @@ SUDOERSEOF
   # User wrapper
   USER_HOME="$(getent passwd "$INSTALL_USER" | cut -d: -f6)"
   WRAPPER="$USER_HOME/bin/home-snapshot"
-  sub "Creating convenience wrapper at $WRAPPER…"
+  save "Creating convenience wrapper at $WRAPPER…"
   install -d -m 755 "$USER_HOME/bin" 2>/dev/null || true
   cat > "$WRAPPER" <<WRAPPEREOF
 #!/usr/bin/env bash
@@ -200,11 +189,12 @@ WRAPPEREOF
   ok "Wrapper created — run \`home-snapshot\` anytime"
 
   echo
-  done_clean "All done!"
-  arrow "Take a manual snapshot now:  $SELF"
-  arrow "View snapshots:              ls -1 $SNAPDIR"
-  arrow "Boot-time snapshots run automatically via systemd"
-  info "Retention: KEEP=30 (oldest pruned first)"
+  ok "All done!"
+  info "Take a manual snapshot now:  $SELF"
+  info "View snapshots:              ls -1 $SNAPDIR"
+  info "Boot-time snapshots run automatically via systemd"
+  info "Pin a snapshot forever:      snapshot-keep   (exempt from prune)"
+  info "Retention: last 30 days (older pruned; keep-* pinned)"
 }
 
 # ── Uninstall ──────────────────────────────────────────────────────────────
@@ -215,14 +205,14 @@ do_uninstall() {
   header "Stopping & disabling service"
   systemctl disable --now "$SERVICE_NAME" 2>/dev/null || true
   if [[ -f "$SERVICE" ]]; then
-    clean "Removing $SERVICE…"
+    info "Removing $SERVICE…"
     rm -f "$SERVICE"
   fi
   ok "Service removed"
 
   header "Helper script"
   if [[ -f "$HELPER" ]]; then
-    clean "Removing $HELPER…"
+    info "Removing $HELPER…"
     rm -f "$HELPER"
   fi
   ok "Helper removed"
@@ -233,9 +223,9 @@ do_uninstall() {
   REMOVE_USER="${SUDO_USER:-$(id -un)}"
   SUDOERS_FILE=/etc/sudoers.d/home-snapshot
   if [[ -f "$SUDOERS_FILE" ]]; then
-    guard "Backing up $SUDOERS_FILE → ${SUDOERS_FILE}.bak"
+    info "Backing up $SUDOERS_FILE → ${SUDOERS_FILE}.bak"
     cp -a "$SUDOERS_FILE" "${SUDOERS_FILE}.bak"
-    clean "Removing $SUDOERS_FILE…"
+    info "Removing $SUDOERS_FILE…"
     rm -f "$SUDOERS_FILE"
     ok "Sudoers rule removed"
   else
@@ -246,7 +236,7 @@ do_uninstall() {
   USER_HOME="$(getent passwd "$REMOVE_USER" | cut -d: -f6)"
   WRAPPER="$USER_HOME/bin/home-snapshot"
   if [[ -f "$WRAPPER" ]]; then
-    clean "Removing $WRAPPER…"
+    info "Removing $WRAPPER…"
     rm -f "$WRAPPER"
     ok "Wrapper removed"
   else
@@ -254,8 +244,8 @@ do_uninstall() {
   fi
 
   echo
-  done_clean "Uninstall complete!"
-  dir "Snapshots left untouched at $SNAPDIR"
+  ok "Uninstall complete!"
+  info "Snapshots left untouched at $SNAPDIR"
   info "Delete manually with: sudo btrfs subvolume delete $SNAPDIR/<name>"
 }
 
@@ -283,7 +273,7 @@ case "${1:-}" in
   '')             do_snapshot;;
   *)
     err "Unknown option: $1"
-    memo "Run \`$SELF --help\` for usage"
+    info "Run \`$SELF --help\` for usage"
     exit 1
     ;;
 esac

@@ -5,7 +5,14 @@ set -euo pipefail
 # window so the terminal is freed for the duration of the (potentially long)
 # installation.  Prefer an existing "main" session; fall back to a new session
 # named "genesis".
-if [[ -z "${TMUX:-}" ]] && command -v tmux >/dev/null 2>&1; then
+# --list/--help just print and exit; don't bury their output in a detached tmux window.
+_no_tmux=0
+for _arg in "$@"; do
+    case "$_arg" in
+        -l|--list|-h|--help) _no_tmux=1 ;;
+    esac
+done
+if [[ "$_no_tmux" == 0 ]] && [[ -z "${TMUX:-}" ]] && command -v tmux >/dev/null 2>&1; then
     _script=$(realpath "${BASH_SOURCE[0]}")
     _cmd="bash $(printf '%q' "$_script")"
     [[ $# -gt 0 ]] && _cmd+=" $(printf '%q ' "$@")"
@@ -56,6 +63,42 @@ CARGO_PACKAGES=(
     reef-shell
     du-dust
 )
+
+# Ordered list of installable "things": <name>:<installer function>.
+# Single source of truth for both the full run and targeted --force/--list.
+INSTALLERS=(
+    "apt:install_apt_group"
+    "uv:install_uv"
+    "uv-tools:install_uv_tools"
+    "fzf:install_fzf"
+    "starship:install_starship"
+    "eza:install_eza"
+    "fastfetch:install_fastfetch"
+    "tv:install_tv"
+    "scooter:install_scooter"
+    "amoxide:install_amoxide"
+    "go:install_go"
+    "go-packages:install_go_packages"
+    "rust:install_rust"
+    "cargo-packages:install_cargo_packages"
+    "helix:install_helix_from_source"
+    "task:install_task"
+    "fira-font:install_firacode_nerd_font_if_gui"
+    "jetbrains-font:install_jetbrains_mono_font_if_gui"
+    "fish:change_shell_to_fish"
+)
+
+# Look up the installer function for a thing name; echoes it, or returns 1.
+_installer_for() {
+    local entry
+    for entry in "${INSTALLERS[@]}"; do
+        if [[ "${entry%%:*}" == "$1" ]]; then
+            printf '%s\n' "${entry#*:}"
+            return 0
+        fi
+    done
+    return 1
+}
 
 # =============================================================================
 
@@ -154,6 +197,15 @@ purge_neofetch() {
         _run_apt purge -y -qq neofetch
         echo "✅ neofetch purged"
     fi
+}
+
+# apt packages + related cleanup; skipped entirely in --update mode (apt upgrade
+# handles refreshes there). Bundled so the INSTALLERS table stays uniform.
+install_apt_group() {
+    [[ "${UPDATE_ONLY:-0}" == 1 ]] && return 0
+    install_apt_packages
+    purge_neofetch
+    ensure_fd_symlink
 }
 
 install_apt_packages() {
@@ -900,29 +952,46 @@ change_shell_to_fish() {
     fi
 }
 
+_usage() {
+    echo "Usage: ${0##*/} [--force [name...]] [--update] [--list] [--help]"
+    echo ""
+    echo "  -f, --force [name...]  Re-run installers. With names, force only those things"
+    echo "                         (e.g. --force helix fzf); assumes their prerequisites"
+    echo "                         already exist. Bare --force re-runs everything."
+    echo "  --update               Re-run non-apt installers only (for periodic updates)"
+    echo "  -l, --list             List the installable thing names and exit"
+}
+
 main() {
-    echo "🛠️ Install packages ..."
     INSTALL_FORCE=0
     UPDATE_ONLY=0
+    local FORCE_TARGETS=()
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --force)
+            -f|--force)
                 INSTALL_FORCE=1
                 shift
+                # Consume following non-flag args as targeted thing names.
+                while [[ $# -gt 0 && "$1" != -* ]]; do
+                    FORCE_TARGETS+=("$1")
+                    shift
+                done
                 ;;
             --update)
                 UPDATE_ONLY=1
                 shift
                 ;;
+            -l|--list)
+                printf '%s\n' "${INSTALLERS[@]%%:*}"
+                exit 0
+                ;;
             -h|--help)
-                echo "Usage: ${0##*/} [--force] [--update] [--help]"
-                echo "  --force   Re-run all installers (including apt)"
-                echo "  --update  Re-run non-apt installers only (for periodic updates)"
+                _usage
                 exit 0
                 ;;
             *)
                 echo "Unknown option: $1" >&2
-                echo "Usage: ${0##*/} [--force] [--update] [--help]" >&2
+                _usage >&2
                 exit 1
                 ;;
         esac
@@ -930,29 +999,32 @@ main() {
     export INSTALL_FORCE
     export UPDATE_ONLY
 
-    if [[ "$UPDATE_ONLY" == 0 ]]; then
-        install_apt_packages
-        purge_neofetch
-        ensure_fd_symlink
+    echo "🛠️ Install packages ..."
+
+    # Targeted force: validate all names first, then run only those installers.
+    if [[ ${#FORCE_TARGETS[@]} -gt 0 ]]; then
+        local name fn bad=0
+        for name in "${FORCE_TARGETS[@]}"; do
+            if ! _installer_for "$name" >/dev/null; then
+                echo "❌ Unknown thing: $name" >&2
+                bad=1
+            fi
+        done
+        if [[ "$bad" == 1 ]]; then
+            echo "Available: ${INSTALLERS[*]%%:*}" >&2
+            exit 1
+        fi
+        for name in "${FORCE_TARGETS[@]}"; do
+            fn=$(_installer_for "$name")
+            "$fn"
+        done
+        return
     fi
-    install_uv
-    install_uv_tools
-    install_fzf
-    install_starship
-    install_eza
-    install_fastfetch
-    install_tv
-    install_scooter
-    install_amoxide
-    install_go
-    install_go_packages
-    install_rust
-    install_cargo_packages
-    install_helix_from_source
-    install_task
-    install_firacode_nerd_font_if_gui
-    install_jetbrains_mono_font_if_gui
-    change_shell_to_fish
+
+    local entry
+    for entry in "${INSTALLERS[@]}"; do
+        "${entry#*:}"
+    done
 }
 
 main "$@"

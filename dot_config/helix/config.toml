@@ -29,6 +29,8 @@ separator = "│"
 # Lazygit integration (Ctrl+g): saves all buffers, opens lazygit in a temp
 # buffer, auto-closes it on exit, redraws and reloads to clear stale gutters
 [keys.normal]
+C-j = "page_down"
+C-k = "page_up"
 C-g = [":write-all", ":new", ":insert-output lazygit", ":buffer-close!", ":redraw", ":reload-all"]
 tab = "move_parent_node_end"
 S-tab = "move_parent_node_start"

@@ -290,13 +290,29 @@ function __wt_done -a root_dir worktree_dir name
         echo "🚫 could not checkout $target_branch in $root_dir (resolve repo state and retry)" >&2
         return 1
     end
-    git -C $root_dir pull origin $target_branch 2>/dev/null; or echo "  (no remote / pull skipped)"
-    git -C $root_dir merge $task_branch --no-edit --no-verify
-    if test $status -ne 0
-        echo "🚫 merge $task_branch into $target_branch failed — fix conflicts in $root_dir, then run: wt done $name" >&2
+    # Re-run after a conflicted merge: handle the leftover state instead of blindly re-merging.
+    # A bare `git merge` cannot resume a conflicted merge, so the old "just run wt done again"
+    # advice looped on the same error until the user committed.
+    if git -C $root_dir rev-parse -q --verify MERGE_HEAD &>/dev/null
+        echo "🚫 unfinished merge in $root_dir — resolve the conflicts, then:" >&2
+        echo "     git add -u && git commit --no-edit" >&2
+        echo "   then re-run: wt done $name" >&2
         return 1
     end
-    echo "  merged $task_branch -> $target_branch (local only — push manually if needed)"
+    if git -C $root_dir merge-base --is-ancestor $task_branch $target_branch &>/dev/null
+        echo "  $task_branch already merged into $target_branch — skipping to cleanup"
+    else
+        git -C $root_dir pull origin $target_branch 2>/dev/null; or echo "  (no remote / pull skipped)"
+        git -C $root_dir merge $task_branch --no-edit --no-verify
+        if test $status -ne 0
+            echo "🚫 conflicts merging $task_branch into $target_branch. Finish in $root_dir:" >&2
+            echo "     1. resolve the conflicted files" >&2
+            echo "     2. git add -u && git commit --no-edit" >&2
+            echo "     3. wt done $name   (completes cleanup)" >&2
+            return 1
+        end
+        echo "  merged $task_branch -> $target_branch (local only — push manually if needed)"
+    end
 
     # 2. Cleanup — remove worktree first so task_branch is no longer checked out, then delete branch ref
     echo "💀 Removing worktree"
