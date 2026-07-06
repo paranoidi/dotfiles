@@ -14,8 +14,15 @@ for _arg in "$@"; do
 done
 if [[ "$_no_tmux" == 0 ]] && [[ -z "${TMUX:-}" ]] && command -v tmux >/dev/null 2>&1; then
     _script=$(realpath "${BASH_SOURCE[0]}")
-    _cmd="bash $(printf '%q' "$_script")"
+    # chezmoi (which runs this as run_onchange_install-packages.sh) executes it
+    # from a temp file it deletes as soon as this process exits. Since we exit
+    # right after handing off to a detached tmux job, that job would try to
+    # `bash` a file chezmoi already removed. Copy it somewhere stable first.
+    _script_copy=$(mktemp /tmp/install-packages-XXXXXX.sh)
+    cp "$_script" "$_script_copy"
+    _cmd="bash $(printf '%q' "$_script_copy")"
     [[ $# -gt 0 ]] && _cmd+=" $(printf '%q ' "$@")"
+    _cmd+="; rm -f $(printf '%q' "$_script_copy")"
     if tmux has-session -t main 2>/dev/null; then
         tmux new-window -d -t main: -n "install-packages" "$_cmd"
         echo "▶️  Launched in tmux session 'main' (new window). Attach: tmux attach -t main"
