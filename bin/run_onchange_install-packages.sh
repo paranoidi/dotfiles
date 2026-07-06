@@ -23,6 +23,9 @@ if [[ "$_no_tmux" == 0 ]] && [[ -z "${TMUX:-}" ]] && command -v tmux >/dev/null 
     _cmd="bash $(printf '%q' "$_script_copy")"
     [[ $# -gt 0 ]] && _cmd+=" $(printf '%q ' "$@")"
     _cmd+="; rm -f $(printf '%q' "$_script_copy")"
+    # Keep the pane open (dropped into an interactive shell) after the install
+    # finishes so results stay visible instead of the window closing.
+    _cmd+="; exec bash"
     if tmux has-session -t main 2>/dev/null; then
         tmux new-window -d -t main: -n "install-packages" "$_cmd"
         echo "▶️  Launched in tmux session 'main' (new window). Attach: tmux attach -t main"
