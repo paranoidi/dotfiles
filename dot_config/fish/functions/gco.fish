@@ -23,5 +23,17 @@ function gco --description "🔀 git checkout a branch with fzf"
     )
     or return
 
-    git checkout $selected_branch
+    # If the selection is a local branch, just switch to it. Otherwise it's a
+    # remote branch (e.g. origin/foo): check out a local tracking branch of the
+    # same name instead of ending up in a detached HEAD state.
+    if git show-ref --verify --quiet "refs/heads/$selected_branch"
+        git switch $selected_branch
+    else
+        set -l local_name (string replace -r '^[^/]+/' '' -- $selected_branch)
+        if git show-ref --verify --quiet "refs/heads/$local_name"
+            git switch $local_name
+        else
+            git switch --track $selected_branch
+        end
+    end
 end
