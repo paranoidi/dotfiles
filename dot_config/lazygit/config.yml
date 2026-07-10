@@ -1,4 +1,5 @@
 gui:
+  scrollHeight: 8
   sidePanelWidth: 0.45
   skipRewordInEditorWarning: true
   expandFocusedSidePanel: true

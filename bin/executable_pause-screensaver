@@ -88,7 +88,7 @@ systemd-run --user \
 # 4. Disable screensaver settings
 gsettings set org.cinnamon.desktop.screensaver lock-enabled false || abort
 gsettings set org.cinnamon.desktop.screensaver idle-activation-enabled false || abort
-gsettings set org.gnome.desktop.session idle-delay 86400 || abort
+gsettings set org.gnome.desktop.session idle-delay 0 || abort
 
 # 5. Disable DPMS (monitor power saving)
 xset -dpms || abort

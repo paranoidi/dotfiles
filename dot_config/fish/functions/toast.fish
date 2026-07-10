@@ -1,5 +1,5 @@
 function toast
-    argparse 'i/icon=' -- $argv
+    argparse 'i/icon=' 's/stick' -- $argv
     or return
 
     set -l text (string join ' ' -- $argv)
@@ -20,7 +20,11 @@ function toast
     if command -v notify-send >/dev/null 2>&1
         if test -n "$DISPLAY" -o -n "$WAYLAND_DISPLAY"
             if not __is_terminal_focused
-                command notify-send "$text" 2>/dev/null &
+                set -l timeout 3500
+                if set -q _flag_stick
+                    set timeout 0
+                end
+                command notify-send -t $timeout "$text" 2>/dev/null &
             end
         end
     end
