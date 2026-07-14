@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
-# tmux-window-status cmd title path
+# tmux-window-status cmd title path pane_id
 # Outputs: "<icon> <info>" for one window status entry.
 # Arguments passed from .tmux.conf:
 #   $1  pane_current_command
 #   $2  pane_title
 #   $3  pane_current_path
+#   $4  pane_id (for agent state capture; optional)
+#   $5  1 if this is the current window (clears the "done" flag), else 0/empty
+# Self-check: windows-status.sh --test
 
 cmd="$1"
 title="$2"
 path="$3"
+pane_id="$4"
+is_current="$5"
 
 normalize_cmd() {
     case "$1" in batcat) printf 'bat' ;; vim|nvim) printf 'vi' ;; *) printf '%s' "$1" ;; esac
@@ -20,6 +25,7 @@ command_icon() {
         fish)                   printf '🐟' ;;
         bash)                   printf '😼' ;;
         python3|python|uv|pip)  printf '🐍' ;;
+        go|gofmt)               printf '🐹' ;;
         claude)                 printf '🧠' ;;
         hermes)                 printf '🤖' ;;
         ruby)                   printf '💎' ;;
@@ -46,6 +52,72 @@ command_icon() {
     esac
 }
 
+# Agent state from (title, bottom-of-screen text). Rules ported from
+# herdr's src/detect/manifests/{claude,hermes,github-copilot,pi}.toml.
+# Prints: working | blocked | idle
+agent_state() {
+    local cmd="$1" title="$2" text="${3,,}"    # lowercase text, herdr matches case-insensitively
+    case "$cmd" in
+        claude)
+            # herdr priority: spinner title (1100) > screen blockers (850-980) > idle
+            if [[ "$title" =~ ^[⠀-⣿]\  ]]; then
+                printf 'working'
+            elif [[ "$text" == *'do you want to proceed?'* ]] ||
+                 { [[ "$text" == *'esc to cancel'* ]] && [[ "$text" == *'enter to select'* ]]; }; then
+                printf 'blocked'
+            else
+                printf 'idle'
+            fi ;;
+        hermes)
+            if [[ "$text" == *'dangerous command'* || "$text" == *'allow once'* ]]; then
+                printf 'blocked'
+            elif [[ "$text" == *'msg=interrupt'* || "$text" == *'ctrl+c cancel'* ]]; then
+                printf 'working'
+            else
+                printf 'idle'
+            fi ;;
+        copilot)
+            if [[ "$text" == *'esc to cancel'* || "$text" == *'esc cancel'* ]]; then
+                if [[ "$text" == *'enter to select'* || "$text" == *'enter to confirm'* ||
+                      "$text" == *'enter to submit'* || "$text" == *'enter accept'* ]]; then
+                    printf 'blocked'
+                else
+                    printf 'working'
+                fi
+            elif [[ "$text" == *'esc interrupt'* ]]; then
+                printf 'working'
+            else
+                printf 'idle'
+            fi ;;
+        pi)
+            # ponytail: herdr's pi relies on socket hooks; screen manifest only has this
+            if [[ "$text" == *'working...'* ]]; then
+                printf 'working'
+            else
+                printf 'idle'
+            fi ;;
+    esac
+}
+
+if [[ "$1" == --test ]]; then
+    t() { local want="$1"; shift; local got; got="$(agent_state "$@")"
+          [[ "$got" == "$want" ]] || { echo "FAIL: agent_state $* -> '$got', want '$want'"; exit 1; }; }
+    t working claude '⠐ fix parser' ''
+    t blocked claude '✳ fix parser' $'Bash command\nDo you want to proceed?\n ❯ 1. Yes'
+    t blocked claude '✳ fix parser' $'Enter to select · Esc to cancel'
+    t idle    claude '✳ fix parser' $'❯ '
+    t blocked hermes '' 'Allow once   Allow for this session   Deny'
+    t working hermes '' 'esc … ctrl+c cancel'
+    t idle    hermes '' 'hermes> '
+    t blocked copilot '' 'Enter to select · Esc to cancel'
+    t working copilot '' 'Esc to cancel'
+    t idle    copilot '' '> '
+    t working pi '' 'Working...'
+    t idle    pi '' 'pi> '
+    echo OK
+    exit 0
+fi
+
 command_title_mode() {
     case "$1" in
         ssh|scp)                printf 'remote' ;;
@@ -58,7 +130,7 @@ host_label() {
     case "$1" in
         hime)                   printf '🎬' ;;
         raspberryp)             printf '🤖' ;;
-        mamoru)                 printf '👀' ;;
+        mamoru)                 printf '🔦' ;;
         prox)                   printf '🛠️' ;;
         orochi)                 printf '🚗' ;;
         *)                      printf '%s' "${1:0:4}" ;;
@@ -170,4 +242,30 @@ else
     fi
 fi
 
-printf '%s %s' "$icon" "$info"
+# ponytail: local agents only — behind ssh cmd is "ssh", no badge there
+badge=""
+if [[ -n "$pane_id" && "$cmd" =~ ^(claude|hermes|pi|copilot)$ ]]; then
+    pane_text="$(tmux capture-pane -p -t "$pane_id" 2>/dev/null | tail -n 20)"
+    state="$(agent_state "$cmd" "$title" "$pane_text")"
+
+    # "Done while you were away": working→idle edge in a non-current window
+    # sets @agent_done; rendering as the current window clears it (= seen).
+    # State lives in pane user options, dies with the pane.
+    # ponytail: 5s poll is the debounce — a working→idle flicker across a
+    # tick can false-ring; store two prev states if it ever annoys.
+    prev="$(tmux show -pqvt "$pane_id" @agent_prev 2>/dev/null)"
+    tmux set -pt "$pane_id" @agent_prev "$state" 2>/dev/null
+    if [[ "$is_current" == 1 ]]; then
+        tmux set -pt "$pane_id" -u @agent_done 2>/dev/null
+    elif [[ "$prev" == working && "$state" == idle ]]; then
+        tmux set -pt "$pane_id" @agent_done 1 2>/dev/null
+    fi
+
+    case "$state" in
+        blocked) badge='🔔' ;;
+        working) badge='👀' ;;
+        idle)    [[ "$is_current" != 1 && -n "$(tmux show -pqvt "$pane_id" @agent_done 2>/dev/null)" ]] && badge='💡' ;;
+    esac
+fi
+
+printf '%s%s %s' "$badge" "$icon" "$info"

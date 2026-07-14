@@ -6,15 +6,16 @@
 # Otherwise shows just the emoji icon (first field from windows-status.sh).
 #
 # Usage:
-#   ~/bin/tmux/status.sh <window_index> <cmd> <title> <path>
+#   ~/bin/tmux/status.sh <window_index> <cmd> <title> <path> <pane_id>
 
 THIS_INDEX="$1"
 CMD="$2"
 TITLE="$3"
 PATH_ARG="$4"
+PANE_ID="$5"
 
 SHOW_TITLES=$(tmux show -v -g @show_titles 2>/dev/null)
-FULL=$(~/bin/tmux/windows-status.sh "$CMD" "$TITLE" "$PATH_ARG")
+FULL=$(~/bin/tmux/windows-status.sh "$CMD" "$TITLE" "$PATH_ARG" "$PANE_ID" 0)
 
 # Flash mode active — show everything
 if [ "$SHOW_TITLES" = "true" ]; then
