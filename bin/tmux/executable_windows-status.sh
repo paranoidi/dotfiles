@@ -16,7 +16,7 @@ pane_id="$4"
 is_current="$5"
 
 normalize_cmd() {
-    case "$1" in batcat) printf 'bat' ;; vim|nvim) printf 'vi' ;; *) printf '%s' "$1" ;; esac
+    case "$1" in batcat) printf 'bat' ;; vim|nvim) printf 'vi' ;; git-remote-*|git-*) printf 'git' ;; *) printf '%s' "$1" ;; esac
 }
 
 command_icon() {
