@@ -1,9 +1,7 @@
 function pi --description "🧠 Run pi with latest Node via nvm"
-    if test -z "$TMUX"
+    if not set -q TMUX
         set -l escaped (string join ' ' (string escape -- $argv))
-        tmux new-session -d -s main 2>/dev/null; or true
-        tmux new-window -t main: "fish -c 'pi $escaped; exec fish'"
-        exec tmux attach-session -t main
+        _tmux_window "pi $escaped"
         return
     end
 

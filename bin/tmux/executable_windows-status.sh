@@ -27,6 +27,7 @@ command_icon() {
         python3|python|uv|pip)  printf '🐍' ;;
         go|gofmt)               printf '🐹' ;;
         claude)                 printf '🧠' ;;
+        cursor-agent)           printf '🚀' ;;
         hermes)                 printf '🤖' ;;
         ruby)                   printf '💎' ;;
         perl)                   printf '🐪' ;;
@@ -96,6 +97,18 @@ agent_state() {
             else
                 printf 'idle'
             fi ;;
+        cursor-agent)
+            # herdr priority: approval prompts (300-320) > working hints (90-100) > idle
+            if [[ "$text" == *'write to this file?'* || "$text" == *'run this command?'* ||
+                  "$text" == *'waiting for approval'* || "$text" == *'(y) (enter)'* ||
+                  "$text" == *'skip (esc or n)'* || "$text" == *'keep (n)'* ]]; then
+                printf 'blocked'
+            elif [[ "$text" == *'ctrl+c to stop'* ]] ||
+                 [[ "$text" =~ (⬡|⬢|[⠀-⣿])\ [a-z]+ing ]]; then
+                printf 'working'
+            else
+                printf 'idle'
+            fi ;;
     esac
 }
 
@@ -114,6 +127,10 @@ if [[ "$1" == --test ]]; then
     t idle    copilot '' '> '
     t working pi '' 'Working...'
     t idle    pi '' 'pi> '
+    t blocked cursor-agent '' 'Run this command? Run (once) (y)  Skip (esc or n)'
+    t working cursor-agent '' 'Ctrl+C to stop'
+    t working cursor-agent '' '⬢ Generating response'
+    t idle    cursor-agent '' '> '
     echo OK
     exit 0
 fi
@@ -129,7 +146,7 @@ command_title_mode() {
 host_label() {
     case "$1" in
         hime)                   printf '🎬' ;;
-        raspberryp)             printf '🤖' ;;
+        raspberryp)             printf '🍇' ;;
         mamoru)                 printf '🔦' ;;
         prox)                   printf '🛠️' ;;
         orochi)                 printf '🚗' ;;
@@ -244,7 +261,7 @@ fi
 
 # ponytail: local agents only — behind ssh cmd is "ssh", no badge there
 badge=""
-if [[ -n "$pane_id" && "$cmd" =~ ^(claude|hermes|pi|copilot)$ ]]; then
+if [[ -n "$pane_id" && "$cmd" =~ ^(claude|hermes|pi|copilot|cursor-agent)$ ]]; then
     pane_text="$(tmux capture-pane -p -t "$pane_id" 2>/dev/null | tail -n 20)"
     state="$(agent_state "$cmd" "$title" "$pane_text")"
 
