@@ -1,8 +1,13 @@
 #!/bin/bash
-# Conditional window status for non-current windows.
-# Shows full info if:
-#   - titles are in flash mode (Alt key recently pressed), OR
-#   - this window is within ±2 of the active window
+# Window status for BOTH the current and non-current window-status formats
+# (tmux.conf points window-status-current-format here too). Using one script
+# with an identical argument shape for both cases means tmux sees the same
+# #() job command whether a window is current or not, so it stays warm across
+# focus changes instead of cache-missing (and flickering blank) the first time
+# a brand-new window is displayed non-current.
+#
+# Shows full info if this is the current window, titles are in flash mode
+# (Alt key recently pressed), or this window is within ±2 of the active one.
 # Otherwise shows just the emoji icon (first field from windows-status.sh).
 #
 # Usage:
@@ -14,6 +19,13 @@ TITLE="$3"
 PATH_ARG="$4"
 PANE_ID="$5"
 
+CURRENT_INDEX=$(tmux display-message -p '#{window_index}' 2>/dev/null)
+
+if [ -n "$CURRENT_INDEX" ] && [ "$THIS_INDEX" = "$CURRENT_INDEX" ]; then
+    printf '%s' "$(~/bin/tmux/windows-status.sh "$CMD" "$TITLE" "$PATH_ARG" "$PANE_ID" 1)"
+    exit
+fi
+
 SHOW_TITLES=$(tmux show -v -g @show_titles 2>/dev/null)
 FULL=$(~/bin/tmux/windows-status.sh "$CMD" "$TITLE" "$PATH_ARG" "$PANE_ID" 0)
 
@@ -24,7 +36,6 @@ if [ "$SHOW_TITLES" = "true" ]; then
 fi
 
 # Always show within ±2 of the active window
-CURRENT_INDEX=$(tmux display-message -p '#{window_index}' 2>/dev/null)
 if [ -n "$CURRENT_INDEX" ] && [ -n "$THIS_INDEX" ]; then
     DIFF=$((THIS_INDEX - CURRENT_INDEX))
     ABS_DIFF=${DIFF#-}
