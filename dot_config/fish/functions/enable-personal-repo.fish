@@ -23,9 +23,9 @@ function enable-personal-repo --description 'Enable personal GitHub SSH remote f
     end
 
     if test -z "$key_path"; or test -z "$alias"
-        if not command -q gum
+        if not command -q fzf
             echo "Usage: enable-personal-repo <ssh-key-path> <github-host-alias>"
-            echo "🚫 Error: gum is required when arguments are omitted."
+            echo "🚫 Error: fzf is required when arguments are omitted."
             return 1
         end
     end
@@ -49,7 +49,7 @@ function enable-personal-repo --description 'Enable personal GitHub SSH remote f
             return 1
         end
 
-        set key_path (printf '%s\n' $ssh_key_candidates | gum choose --header "Select SSH key")
+        set key_path (printf '%s\n' $ssh_key_candidates | fzf --prompt "SSH key> " --height 60% --reverse --header "Select SSH key" --preview 'ssh-keygen -l -f {}.pub 2>/dev/null || ssh-keygen -l -f {} 2>/dev/null; echo; cat {}.pub 2>/dev/null' --preview-window 'right:60%:wrap')
 
         if test -z "$key_path"
             echo "🚫 Error: no SSH key selected."
@@ -82,7 +82,7 @@ function enable-personal-repo --description 'Enable personal GitHub SSH remote f
             end
         end
 
-        set alias (printf '%s\n' $alias_candidates | gum choose --header "Select GitHub host alias")
+        set alias (printf '%s\n' $alias_candidates | fzf --prompt "GitHub host alias> " --height 60% --reverse --header "Select GitHub host alias" --preview 'ssh -G {} 2>/dev/null | grep -iE "^(hostname|user|identityfile) "' --preview-window 'right:60%:wrap')
 
         if test -z "$alias"
             echo "🚫 Error: no GitHub host alias selected."
@@ -152,7 +152,7 @@ function enable-personal-repo --description 'Enable personal GitHub SSH remote f
     else if test "$block_key" != "$key_path"
         echo "Updating IdentityFile for '$alias' from: $block_key"
         echo "                                      to: $key_path"
-        sed -i -E "/^Host[[:space:]]+$alias$/,/^Host[[:space:]]/ s|^([[:space:]]*IdentityFile[[:space:]]+).*|\1$key_path|" "$ssh_config"
+        sed -i -E "/^Host[[:space:]]+$alias\$/,/^Host[[:space:]]/ s|^([[:space:]]*IdentityFile[[:space:]]+).*|\1$key_path|" "$ssh_config"
     else
         echo "SSH alias '$alias' already exists in config with correct key."
     end
