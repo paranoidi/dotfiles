@@ -190,6 +190,16 @@ _github_release_json() {
         "https://api.github.com/repos/${repo}/releases/latest"
 }
 
+# Downloads a .tar.gz from $2 into a fresh temp dir and extracts it there.
+# Echoes the temp dir path on success; caller must rm -rf it when done.
+_download_extract_tarball() {
+    local tar_file=$1 url=$2 tmpdir
+    tmpdir=$(mktemp -d)
+    curl -fsSL -o "${tmpdir}/${tar_file}" "$url" || { rm -rf "$tmpdir"; return 1; }
+    tar -xzf "${tmpdir}/${tar_file}" -C "$tmpdir"
+    printf '%s\n' "$tmpdir"
+}
+
 # Downloads a .deb from $1 and installs it via apt-get; cleans up on success or failure.
 _install_deb() {
     local url=$1 tmp
@@ -373,10 +383,8 @@ install_fastfetch() {
         return 1
     fi
 
-    tmpdir=$(mktemp -d)
     echo "⬇️  Downloading ${tar_file}..."
-    curl -fsSL -o "${tmpdir}/${tar_file}" "$tar_url" || { rm -rf "$tmpdir"; return 1; }
-    tar -xzf "${tmpdir}/${tar_file}" -C "$tmpdir"
+    tmpdir=$(_download_extract_tarball "$tar_file" "$tar_url") || return 1
     local extract_dir="${tar_file%.tar.gz}"
     sudo install -m 0755 "${tmpdir}/${extract_dir}/usr/bin/fastfetch" "/usr/local/bin/fastfetch"
     sudo install -m 0755 "${tmpdir}/${extract_dir}/usr/bin/flashfetch" "/usr/local/bin/flashfetch" 2>/dev/null || true
@@ -479,9 +487,7 @@ install_tv() {
     dirname="tv-${ver}-${binary_target}"
     tarball="${dirname}.tar.gz"
     url="https://github.com/alexpasmantier/television/releases/download/${ver}/${tarball}"
-    tmpdir=$(mktemp -d)
-    curl -fsSL -o "${tmpdir}/${tarball}" "$url" || { rm -rf "$tmpdir"; return 1; }
-    tar -xzf "${tmpdir}/${tarball}" -C "$tmpdir"
+    tmpdir=$(_download_extract_tarball "$tarball" "$url") || return 1
     sudo mkdir -p "$install_dir"
     sudo mv "${tmpdir}/${dirname}/tv" "${install_dir}/tv"
     sudo chmod +x "${install_dir}/tv"
@@ -507,8 +513,7 @@ install_helix_from_source() {
     fi
 
     local cargo_cmd
-    cargo_cmd=$(command -v cargo 2>/dev/null || true)
-    [[ -z "$cargo_cmd" ]] && [[ -x "${HOME}/.cargo/bin/cargo" ]] && cargo_cmd="${HOME}/.cargo/bin/cargo"
+    cargo_cmd=$(_cargo_cmd || true)
     if [[ -z "$cargo_cmd" ]]; then
         echo "❌ cargo is not available; cannot build helix from source" >&2
         return 1
@@ -615,12 +620,9 @@ install_scooter() {
     local install_dir="${HOME}/.local/bin"
     mkdir -p "$install_dir"
 
-    local tmpdir
-    tmpdir=$(mktemp -d)
-
     echo "⬇️  Downloading ${asset_name}..."
-    curl -fsSL -o "${tmpdir}/${asset_name}" "$asset_url" || { rm -rf "$tmpdir"; return 1; }
-    tar -xzf "${tmpdir}/${asset_name}" -C "$tmpdir"
+    local tmpdir
+    tmpdir=$(_download_extract_tarball "$asset_name" "$asset_url") || return 1
 
     local extracted_dir="${tmpdir}/scooter-${ver}-${asset_suffix}"
     if [[ -f "${extracted_dir}/scooter" ]]; then
@@ -739,6 +741,18 @@ install_go_packages() {
     fi
 }
 
+_cargo_cmd() {
+    if command -v cargo >/dev/null 2>&1; then
+        command -v cargo
+        return 0
+    fi
+    if [[ -x "${HOME}/.cargo/bin/cargo" ]]; then
+        printf '%s\n' "${HOME}/.cargo/bin/cargo"
+        return 0
+    fi
+    return 1
+}
+
 _uv_cmd() {
     if command -v uv >/dev/null 2>&1; then
         command -v uv
@@ -830,8 +844,7 @@ _cargo_install() {
 
 install_rust() {
     local cargo_cmd
-    cargo_cmd=$(command -v cargo 2>/dev/null || true)
-    [[ -z "$cargo_cmd" ]] && [[ -x "${HOME}/.cargo/bin/cargo" ]] && cargo_cmd="${HOME}/.cargo/bin/cargo"
+    cargo_cmd=$(_cargo_cmd || true)
 
     if [[ -n "$cargo_cmd" ]] && [[ "${INSTALL_FORCE:-0}" != 1 ]]; then
         echo "✅ Rust ($("$cargo_cmd" --version 2>/dev/null | awk '{print $2}'))"
@@ -844,8 +857,7 @@ install_rust() {
 
 install_cargo_packages() {
     local cargo_cmd
-    cargo_cmd=$(command -v cargo 2>/dev/null || true)
-    [[ -z "$cargo_cmd" ]] && [[ -x "${HOME}/.cargo/bin/cargo" ]] && cargo_cmd="${HOME}/.cargo/bin/cargo"
+    cargo_cmd=$(_cargo_cmd || true)
     if [[ -z "$cargo_cmd" ]]; then
         echo "❌ cargo is not available, cannot install cargo packages" >&2
         return 1
@@ -948,17 +960,12 @@ change_shell_to_fish() {
         echo "❌ Could not determine fish version, skipping shell change" >&2
         return 0
     fi
-    local major minor
-    major=$(echo "$fish_version" | cut -d. -f1)
-    minor=$(echo "$fish_version" | cut -d. -f2)
-    local required_major=3
-    local required_minor=7
-
-    if [ "$major" -gt "$required_major" ] || ([ "$major" -eq "$required_major" ] && [ "$minor" -ge "$required_minor" ]); then
+    local required_version=3.7
+    if printf '%s\n%s\n' "$required_version" "$fish_version" | sort -C -V; then
         echo "🏆 Changing shell to fish (version $fish_version)..."
         chsh -s "$fish_path"
     else
-        echo "❌ Fish version $fish_version is less than required 3.7, skipping shell change" >&2
+        echo "❌ Fish version $fish_version is less than required ${required_version}, skipping shell change" >&2
     fi
 }
 

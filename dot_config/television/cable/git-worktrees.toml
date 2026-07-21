@@ -1,0 +1,78 @@
+[metadata]
+name = "git-worktrees"
+description = "List and switch between git worktrees"
+requirements = ["git"]
+
+[source]
+# Match `wt ls`: skip primary checkout, relative path, yellow hash + cyan date.
+# Entry is the display line; extract relative path with strip_ansi (like git-log).
+# bash -c so this works when television's shell is fish.
+command = '''
+bash -c '
+root="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+tmp="$(mktemp)"
+trap "rm -f $tmp" EXIT
+path=""
+bare=0
+{ git worktree list --porcelain; echo; } | while IFS= read -r line; do
+  if [ -z "$line" ]; then
+    if [ -n "$path" ] && [ "$path" != "$root" ]; then
+      case "$path" in
+        "$root"/*) display="${path#"$root"/}" ;;
+        *) display="$path" ;;
+      esac
+      if [ "$bare" = 1 ]; then
+        commit="(bare)"
+      else
+        commit="$(git -C "$path" log -1 --color=always --pretty=format:"%C(yellow)%h %C(cyan)%ad%Creset %C(auto)%s" --date=format:"%Y-%m-%d" 2>/dev/null)"
+        [ -n "$commit" ] || commit="(no commits)"
+      fi
+      printf "%s\t%s\n" "$display" "$commit"
+    fi
+    path=""
+    bare=0
+    continue
+  fi
+  case "$line" in
+    worktree\ *) path="${line#worktree }" ;;
+    bare) bare=1 ;;
+  esac
+done >"$tmp"
+width=0
+while IFS="$(printf "\t")" read -r display _commit; do
+  len=${#display}
+  [ "$len" -gt "$width" ] && width=$len
+done <"$tmp"
+while IFS="$(printf "\t")" read -r display commit; do
+  printf "%-*s  %s\n" "$width" "$display" "$commit"
+done <"$tmp"
+'
+'''
+ansi = true
+# Relative path is the first whitespace-separated field (like git-log's hash extraction).
+output = "{strip_ansi|split: :0}"
+
+[preview]
+# Must use strip_ansi template — bare {} is the raw ANSI line, not output.
+# bash -c avoids fish mangling nested path joins.
+command = '''
+bash -c 'root="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"; wt="$root/{strip_ansi|split: :0}"; git -C "$wt" log -10 --color=always --pretty=format:"%C(yellow)%h %C(cyan)%ad%Creset %C(auto)%s" --date=format:"%Y-%m-%d"; echo; git -C "$wt" status --short'
+'''
+
+[keybindings]
+enter = "actions:cd"
+ctrl-d = "actions:remove"
+
+[actions.cd]
+description = "Change to the selected worktree"
+command = '''
+bash -c 'cd "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/{strip_ansi|split: :0}" && exec "$SHELL"'
+'''
+mode = "execute"
+
+[actions.remove]
+description = "Remove the selected worktree"
+command = '''
+bash -c 'git worktree remove "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/{strip_ansi|split: :0}"'
+'''
+mode = "execute"

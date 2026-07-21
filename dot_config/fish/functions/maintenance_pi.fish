@@ -38,7 +38,7 @@ function maintenance_pi
         end
 
         # Keep JS packages seven days old since supply chains move fast.
-        tsp fish -c "nvm use latest && npm install --min-release-age=7 -g @mariozechner/pi-coding-agent" > /dev/null
+        tsp fish -c "nvm use latest && tmux-progress '📥 pi update' npm install --min-release-age=7 -g @mariozechner/pi-coding-agent" > /dev/null
         echo $current_time > $timestamp_file
     else
         echo "🚫 nvm is not installed on this machine"

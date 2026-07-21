@@ -41,7 +41,7 @@ function wt --description "🌳 Git work-tree task manager"
         case create c
             __wt_create $root_dir $worktree_dir $argv
         case list ls l
-            git -C $root_dir worktree list --verbose
+            __wt_list $root_dir
         case status s
             __wt_status $root_dir $worktree_dir
         case done d
@@ -78,11 +78,11 @@ function wt --description "🌳 Git work-tree task manager"
             echo ""
             echo "Commands:"
             echo -e "  \e[1mc\e[0mreate <name> [branch]  Create worktree from branch (default: current branch)"
-            echo -e "  \e[1ml\e[0ms                      List git worktrees"
+            echo -e "  \e[1ml\e[0ms                      List git worktrees with last commit date"
             echo -e "  \e[1ms\e[0mtatus                  Branch, dirty files, and sync vs origin for each task worktree"
             echo -e "  \e[1md\e[0mone [name]             Merge into main and remove task worktree; no name outside worktree → fzf"
             echo -e "  \e[1mk\e[0mill [name]             Abandon worktree(s); no name + fzf → multi-select interactively"
-            echo -e "  \e[1mo\e[0mpen [name]             cd into existing task worktree; no name outside worktree → fzf"
+            echo -e "  \e[1mo\e[0mpen [name]             cd into existing task worktree; no name outside worktree → tv/fzf"
         case '*'
             echo "🚫 unknown command '$cmd'" >&2
             return 1
@@ -106,7 +106,9 @@ end
 function __wt_create -a root_dir worktree_dir
     set -l name $argv[3]
     set -l base_branch $argv[4]
+    set -l explicit_base 1
     if test -z "$base_branch"
+        set explicit_base 0
         set base_branch (git -C $root_dir rev-parse --abbrev-ref HEAD 2>/dev/null)
         test -z "$base_branch"; and set base_branch main
     end
@@ -129,9 +131,15 @@ function __wt_create -a root_dir worktree_dir
     # Create task branch from base branch if it doesn't exist
     if not git -C $root_dir rev-parse --verify "$task_branch" &>/dev/null
         echo "creating branch '$task_branch' from '$base_branch'..."
-        git -C $root_dir fetch origin "$base_branch" 2>/dev/null; or true
-        git -C $root_dir branch "$task_branch" "origin/$base_branch" 2>/dev/null
-        or git -C $root_dir branch "$task_branch" "$base_branch"
+        if test $explicit_base -eq 1
+            # User named this branch explicitly — prefer the up-to-date remote tip.
+            git -C $root_dir fetch origin "$base_branch" 2>/dev/null; or true
+            git -C $root_dir branch "$task_branch" "origin/$base_branch" 2>/dev/null
+            or git -C $root_dir branch "$task_branch" "$base_branch"
+        else
+            # Defaulted from current HEAD — branch from local tip, not a possibly-stale origin.
+            git -C $root_dir branch "$task_branch" "$base_branch"
+        end
     else
         echo "branch '$task_branch' already exists"
     end
@@ -153,7 +161,7 @@ end
 
 # ── agent picker ──────────────────────────────────────────────────────
 function __wt_pick_agent
-    set -l candidates pi copilot claude hermes
+    set -l candidates pi copilot claude hermes cursor
     set -l available
     for c in $candidates
         # type -q finds fish functions as well as PATH binaries
@@ -182,6 +190,84 @@ function __wt_pick_agent
     else
         echo $available[1]
     end
+end
+
+# ── wt list / ls ──────────────────────────────────────────────────────
+function __wt_list -a root_dir
+    set -l wt_path
+    set -l wt_bare 0
+    set -l displays
+    set -l commits
+    set -l width 0
+
+    for line in (git -C $root_dir worktree list --porcelain)
+        if test -z "$line"
+            set -l display
+            set -l commit
+            __wt_list_collect $root_dir $wt_path $wt_bare | read -d \t -l display commit
+            set wt_path
+            set wt_bare 0
+            if test -n "$display"
+                set displays $displays $display
+                set commits $commits $commit
+                set -l len (string length -- $display)
+                if test $len -gt $width
+                    set width $len
+                end
+            end
+            continue
+        end
+
+        set -l key (string split -f 1 ' ' -- $line)
+        switch $key
+            case worktree
+                set wt_path (string replace -r '^worktree ' '' -- $line)
+            case bare
+                set wt_bare 1
+        end
+    end
+
+    # Porcelain may omit a trailing blank line after the last record
+    if test -n "$wt_path"
+        set -l display
+        set -l commit
+        __wt_list_collect $root_dir $wt_path $wt_bare | read -d \t -l display commit
+        if test -n "$display"
+            set displays $displays $display
+            set commits $commits $commit
+            set -l len (string length -- $display)
+            if test $len -gt $width
+                set width $len
+            end
+        end
+    end
+
+    for i in (seq (count $displays))
+        printf '%-*s  %s\n' $width $displays[$i] $commits[$i]
+    end
+end
+
+# Prints: <display>\t<commit-or-bare-label>
+function __wt_list_collect -a root_dir wt_path wt_bare
+    test -n "$wt_path"; or return
+    # Skip the primary checkout — only linked worktrees belong in this list
+    test "$wt_path" = "$root_dir"; and return
+
+    set -l display $wt_path
+    if string match -q -- "$root_dir/*" $wt_path
+        set display (string replace -- "$root_dir/" '' $wt_path)
+    end
+
+    if test "$wt_bare" = 1
+        printf '%s\t%s\n' $display '(bare)'
+        return
+    end
+
+    set -l commit (git -C $wt_path log -1 --color=always --pretty=format:"%C(yellow)%h %C(cyan)%ad%Creset %C(auto)%s" --date=format:'%Y-%m-%d' 2>/dev/null)
+    if test -z "$commit"
+        set commit '(no commits)'
+    end
+    printf '%s\t%s\n' $display $commit
 end
 
 # ── wt status ─────────────────────────────────────────────────────────
@@ -247,6 +333,13 @@ function __wt_done -a root_dir worktree_dir name
     end
     if not test -d "$wtdir"
         echo "🚫 worktree '$name' not found at $wtdir" >&2
+        return 1
+    end
+
+    set -l dirty (git -C $wtdir status --porcelain 2>/dev/null)
+    if test (count $dirty) -gt 0
+        echo "🚫 worktree '$name' has uncommitted changes — commit or stash before finishing:" >&2
+        git -C $wtdir status --short >&2
         return 1
     end
 
@@ -419,10 +512,15 @@ function __wt_kill -a root_dir worktree_dir name
     echo "💀 Abandoned: $name"
 end
 
-# ── wt open (no args, fzf single-select) ─────────────────────────────
+# ── wt open (no args, tv or fzf single-select) ───────────────────────
 function __wt_open_interactive -a root_dir worktree_dir
+    if command -q tv
+        tv git-worktrees $root_dir
+        return
+    end
+
     if not type -q fzf
-        echo "🚫 wt open with no task name (outside a task worktree) requires fzf (install: https://github.com/junegunn/fzf)" >&2
+        echo "🚫 wt open with no task name (outside a task worktree) requires tv or fzf" >&2
         return 1
     end
 

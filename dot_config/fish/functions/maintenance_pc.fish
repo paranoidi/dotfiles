@@ -9,18 +9,21 @@ function maintenance_pc
         end
 
         set -l repo_dir $HOME/projects/paras-commander
+        tmux-progress "📥 pc update"
 
         # Prefer local checkout when available — bypasses Go module proxy
         if test -d $repo_dir/.git
             # Pull latest from remote (fast-forward only — no accidental merge)
             if not git -C $repo_dir pull --ff-only
                 echo "🚫 maintenance_pc: git pull failed (local changes in repo?)" >&2
+                tmux-progress clear
                 return 1
             end
 
             set -l pc_bin (path normalize (go env GOPATH)/bin/pc)
             if not go build -C $repo_dir -o $pc_bin ./cmd/pc
                 echo "🚫 maintenance_pc: build failed" >&2
+                tmux-progress clear
                 return 1
             end
 
@@ -50,6 +53,7 @@ function maintenance_pc
             end
 
             toast -i '' $message
+            tmux-progress clear
             return 0
         end
 
@@ -62,6 +66,7 @@ function maintenance_pc
 
         if not env GOPROXY=direct go install $install_flags github.com/paranoidi/paras-commander/cmd/pc@main
             echo "🚫 maintenance_pc: go install failed" >&2
+            tmux-progress clear
             return 1
         end
 
@@ -92,6 +97,7 @@ function maintenance_pc
         end
 
         toast -i '🏆' $message
+        tmux-progress clear
         return 0
     end
 
