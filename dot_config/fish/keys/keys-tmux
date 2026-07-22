@@ -2,6 +2,7 @@
 Split window horizontally|" / h|h for horizontal
 Split window vertically|% / v|v for vertical
 Change split orientation|space
+Lazygit|g
 Maximize current panel|z|z for zoom
 Reload .tmux.conf|R|R for reload
 Send to all panes on|e|e for echo
@@ -20,3 +21,6 @@ Previous window|Ctrl-a twice
 Send Ctrl-a when nested|a
 Install tmux plugins|I|I for install
 Uninstall plugins|alt-u|u for uninstall
+Switch panel|
+Resize panel 1|Hold C + 
+Resize panel 5|Hold M + 
