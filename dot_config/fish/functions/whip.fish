@@ -66,9 +66,19 @@ function whip --description 'Schedule text to a tmux window at hh:mm'
 
     # Background fish is process-group leader (job control); cancel uses kill -- -$pid
     # Do not use setsid: when already a PG leader it forks and $last_pid dies immediately
+    #
+    # Agent TUIs (Claude Code / cursor-agent): text+Enter in one send-keys write is often
+    # treated as a soft newline (Shift+Enter). Send literal text, then Enter alone, then a
+    # second Enter after a beat (queue/"send now" confirm).
     fish -c "
         sleep $diff
-        and command tmux send-keys -t $target_id $esc_text Enter
+        and begin
+            command tmux send-keys -t $target_id -l -- $esc_text
+            sleep 0.2
+            command tmux send-keys -t $target_id Enter
+            sleep 0.5
+            command tmux send-keys -t $target_id Enter
+        end
         set -l f $jobfile_esc
         if test -f \$f
             grep -v \"^\$fish_pid	\" \$f > \$f.tmp 2>/dev/null

@@ -178,6 +178,15 @@ if [[ "$cmd" =~ ^(python3|python|uv|pip)$ ]] && echo "$title" | grep -qi 'hermes
     cmd='hermes'
 fi
 
+# When hermes is launched from fish (via hermes.fish wrapper), pane_current_command
+# shows fish, not the underlying python3 process. Check process tree for hermes.
+if [[ "$cmd" == fish ]]; then
+    pane_pid="$(tmux display-message -p -t "$pane_id" '#{pane_pid}' 2>/dev/null)"
+    if [[ -n "$pane_pid" ]] && pstree -p "$pane_pid" 2>/dev/null | grep -qi 'hermes'; then
+        cmd='hermes'
+    fi
+fi
+
 # --- icon + title mode ---
 icon="$(command_icon "$cmd")"
 title_mode="$(command_title_mode "$cmd")"

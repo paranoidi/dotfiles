@@ -147,8 +147,17 @@ function __wt_create -a root_dir worktree_dir
     echo "💾 Creating worktree '$name'..."
     git -C $root_dir worktree add "$wtdir" "$task_branch"
 
-    # Persist the base branch so `wt done` merges back to the right place
+    # Persist the base branch so `wt done` merges back to the right place.
+    # Keep it untracked: exclude so it never shows as dirty / must-commit.
     echo $base_branch >"$wtdir/.wt-base"
+    set -l wt_git_dir (git -C $wtdir rev-parse --git-dir 2>/dev/null)
+    if test -n "$wt_git_dir"
+        mkdir -p "$wt_git_dir/info"
+        set -l exclude_file "$wt_git_dir/info/exclude"
+        if not contains -- .wt-base (cat "$exclude_file" 2>/dev/null)
+            echo '.wt-base' >>"$exclude_file"
+        end
+    end
 
     echo "🌳 Worktree created: $name (branch: $task_branch, base: $base_branch)"
     cd $wtdir
@@ -277,7 +286,7 @@ function __wt_status -a root_dir worktree_dir
         test -d "$wt"; or continue
         set -l name (basename $wt)
         set -l branch (git -C $wt rev-parse --abbrev-ref HEAD 2>/dev/null; or echo "?")
-        set -l dirty (git -C $wt status --porcelain 2>/dev/null | wc -l)
+        set -l dirty (__wt_dirty_lines $wt | wc -l)
 
         # Compare to: configured upstream, else origin/<branch> when that ref exists,
         # else an integration ref (topic never pushed → origin/<branch> missing).
@@ -323,6 +332,11 @@ function __wt_status -a root_dir worktree_dir
     end
 end
 
+# Porcelain status lines excluding wt-internal metadata (.wt-base must not be committed).
+function __wt_dirty_lines -a wtdir
+    git -C $wtdir status --porcelain 2>/dev/null | string match -vr '(^|[[:space:]])\.wt-base$'
+end
+
 # ── wt done <name> (alias: d) ─────────────────────────────────────────
 function __wt_done -a root_dir worktree_dir name
     set -l wtdir "$worktree_dir/$name"
@@ -336,10 +350,10 @@ function __wt_done -a root_dir worktree_dir name
         return 1
     end
 
-    set -l dirty (git -C $wtdir status --porcelain 2>/dev/null)
+    set -l dirty (__wt_dirty_lines $wtdir)
     if test (count $dirty) -gt 0
         echo "🚫 worktree '$name' has uncommitted changes — commit or stash before finishing:" >&2
-        git -C $wtdir status --short >&2
+        printf '%s\n' $dirty >&2
         return 1
     end
 
