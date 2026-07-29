@@ -1,0 +1,44 @@
+# Global mise tools — source of truth (chezmoi-managed).
+# Install/upgrade via run_onchange_install-packages.sh or: mise install
+
+min_version = "2025.11.7"
+
+[tools]
+# Runtimes first so cargo:* can build.
+go = "1.26.5"
+rust = "1.97.1"
+uv = "0.12.0"
+
+bat = "0.26.1"
+delta = "0.19.2"
+duf = "0.9.1"
+dust = "1.2.4"
+eza = "0.23.5"
+fastfetch = "2.66.0"
+fd = "10.4.2"
+fx = "39.2.0"
+fzf = "0.74.1"
+gh = "2.96.0"
+gum = "0.17.0"
+jq = "1.8.2"
+lazydocker = "0.25.2"
+lazygit = "0.63.1"
+neovim = "0.12.4"
+ripgrep = "15.2.0"
+scooter = "0.9.1"
+starship = "1.26.0"
+taplo = "0.10.0"
+task = "3.52.0"
+television = "0.15.9"
+
+# No first-party binstall artifacts (reef-shell is QuickInstall-only). With
+# cargo.binstall disabled below, mise goes straight to cargo install.
+"cargo:reef-shell" = "0.3.0"
+"cargo:amoxide" = "0.10.5"
+
+[settings]
+experimental = true
+lockfile = true
+pin = true
+# Avoid cargo-binstall exit-94 ERROR spam for crates without prebuilts.
+cargo.binstall = false

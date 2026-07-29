@@ -529,7 +529,7 @@ end
 # ── wt open (no args, tv or fzf single-select) ───────────────────────
 function __wt_open_interactive -a root_dir worktree_dir
     if command -q tv
-        tv git-worktrees $root_dir
+        tv --height 20 git-worktrees $root_dir
         return
     end
 

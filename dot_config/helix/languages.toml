@@ -1,3 +1,5 @@
+auto-format = true
+
 [language-server.pyright]
 command = "pyright-langserver"
 args = ["--stdio"]
@@ -6,3 +8,13 @@ args = ["--stdio"]
 name = "python"
 roots = ["pyproject.toml"]
 language-servers = ["pyright"]
+formatter = { command = "ruff format" }
+
+[[language]]
+name = "toml"
+formatter = { command = "taplo", args = ["fmt", "-"] }
+
+[[language]]
+name = "go"
+language-servers = ["gopls", "golangci"]
+formatter = { command = "gofumpt" }

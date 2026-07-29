@@ -8,7 +8,3 @@ if test -d "$HOME/go/bin"; and not contains -- $HOME/go/bin $fish_user_paths
     set -gx fish_user_paths $HOME/go/bin $fish_user_paths
 end
 
-# fzf installed via the upstream install script lives here
-if test -d "$HOME/.fzf/bin"; and not contains -- $HOME/.fzf/bin $fish_user_paths
-    set -gx fish_user_paths $HOME/.fzf/bin $fish_user_paths
-end

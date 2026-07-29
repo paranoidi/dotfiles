@@ -40,11 +40,11 @@ fi
 # CONFIGURATION
 # =============================================================================
 
-# Core packages installed on all systems.
+# System packages that belong in apt (shell, libs, desktop glue).
 APT_PACKAGES=(
-    curl wget git mc task-spooler tmux git-delta
-    fish fd-find bat neovim gh jq unzip
-    ripgrep silversearcher-ag sysstat
+    curl wget git mc task-spooler tmux
+    fish unzip
+    silversearcher-ag sysstat
     build-essential
 )
 
@@ -53,52 +53,32 @@ APT_GUI_PACKAGES=(
     phinger-cursor-theme fonts-ubuntu-classic xclip colorized-logs
 )
 
-# Go packages installed with `go install`.
-GO_PACKAGES=(
-    github.com/charmbracelet/gum@latest
-    github.com/jesseduffield/lazydocker@latest
-    github.com/jesseduffield/lazygit@latest
-    github.com/muesli/duf@latest
-    github.com/antonmedv/fx@latest
-)
+# Tools live in ~/.config/mise/mise.toml (chezmoi-managed). Formerly: custom
+# GitHub/.deb installers, go install, cargo install, apt CLIs, and an inline
+# MISE_TOOLS list that `mise use -g` wrote into config.toml.
 
-# Python tools installed with `uv tool install` after uv is available.
+# Python tools installed with `uv tool install` after uv (via mise) is available.
 UV_TOOLS=(
     tldr
     pyright
 )
 
-# Cargo (Rust) packages installed with `cargo install`.
-CARGO_PACKAGES=(
-    reef-shell
-    du-dust
-)
-
-# Ordered list of installable "things": <name>:<installer function>.
-# Single source of truth for both the full run and targeted --force/--list.
+# Non-mise installers: <name>:<function>. Mise tools come from mise.toml.
+# helix stays source-built (native opt profile) — prebuilt aqua/mise hx is not equivalent.
+# purge-pre-mise runs after mise so replacements exist before apt/old bins are removed.
 INSTALLERS=(
     "apt:install_apt_group"
-    "uv:install_uv"
+    "mise:install_mise_tools"
+    "purge-pre-mise:purge_pre_mise_duplicates"
     "uv-tools:install_uv_tools"
-    "fzf:install_fzf"
-    "starship:install_starship"
-    "eza:install_eza"
-    "fastfetch:install_fastfetch"
-    "tv:install_tv"
-    "scooter:install_scooter"
-    "amoxide:install_amoxide"
-    "go:install_go"
-    "go-packages:install_go_packages"
-    "rust:install_rust"
-    "cargo-packages:install_cargo_packages"
     "helix:install_helix_from_source"
-    "task:install_task"
     "fira-font:install_firacode_nerd_font_if_gui"
     "jetbrains-font:install_jetbrains_mono_font_if_gui"
     "fish:change_shell_to_fish"
 )
 
-# Look up the installer function for a thing name; echoes it, or returns 1.
+MISE_CONFIG="${HOME}/.config/mise/mise.toml"
+
 _installer_for() {
     local entry
     for entry in "${INSTALLERS[@]}"; do
@@ -112,7 +92,6 @@ _installer_for() {
 
 # =============================================================================
 
-# Raspberry Pi / Raspberry Pi OS
 _is_raspberry_pi() {
     if [[ -r /proc/device-tree/model ]] && tr -d '\0' </proc/device-tree/model | grep -qi 'Raspberry Pi'; then
         return 0
@@ -136,113 +115,233 @@ if _is_raspberry_pi; then
 fi
 readonly IS_RASPI
 
-
-# Filter noisy apt CLI output (stderr is merged where shown).
 _apt_out_filter() {
     grep -v -E 'already the newest version|upgraded,|newly installed|to remove|not upgraded|WARNING: apt does not have a stable CLI interface|^Hit:|^Get:|^Ign:|Reading package lists|Building dependency tree|Reading state information|^Fetched |list --upgradable.*see them' | awk 'NF'
 }
 
-# Run a sudo apt command; filtered output; return status of apt.
 _run_apt() {
     sudo apt "$@" 2>&1 | _apt_out_filter
     return "${PIPESTATUS[0]}"
 }
 
-# True iff the named Debian package exists in the current apt cache.
 _apt_pkg_is_available() {
     apt-cache show "$1" >/dev/null 2>&1
 }
 
-# True iff the named Debian package is installed (correct for multiarch :arch names).
 _apt_pkg_is_installed() {
-    local pkg=$1
-    local st
+    local pkg=$1 st
     st=$(dpkg-query -W -f='${db:Status-Status}' "$pkg" 2>/dev/null) || return 1
     [[ "$st" == "installed" ]]
 }
 
-# When INSTALL_FORCE=1, always run installers; otherwise only if the command is missing.
+_want_install_apt_pkg() {
+    [[ "${INSTALL_FORCE:-0}" == 1 ]] && return 0
+    # Skip if the dpkg is present, or if a same-named binary already exists
+    # (e.g. source-built tmux) — package name usually matches the command.
+    ! _apt_pkg_is_installed "$1" && ! command -v "$1" >/dev/null 2>&1
+}
+
 _want_install_cmd() {
     [[ "${INSTALL_FORCE:-0}" == 1 || "${UPDATE_ONLY:-0}" == 1 ]] && return 0
     ! command -v "$1" >/dev/null 2>&1
 }
 
-# When INSTALL_FORCE=1, always run apt install; otherwise only if the package is not installed.
-_want_install_apt_pkg() {
-    [[ "${INSTALL_FORCE:-0}" == 1 ]] && return 0
-    ! _apt_pkg_is_installed "$1"
-}
+# -----------------------------------------------------------------------------
+# mise
+# -----------------------------------------------------------------------------
 
-# Returns the GitHub latest-release JSON for owner/repo.
-# Handles GITHUB_TOKEN / GH_TOKEN auth transparently.
-_github_release_json() {
-    local repo=$1
-    local auth=()
-    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-        auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
-    elif [[ -n "${GH_TOKEN:-}" ]]; then
-        auth=(-H "Authorization: Bearer ${GH_TOKEN}")
+ensure_mise() {
+    export PATH="${HOME}/.local/bin:${PATH}"
+    if ! command -v mise >/dev/null 2>&1; then
+        echo "🌐 Installing mise..."
+        curl -fsSL https://mise.run | sh
+        export PATH="${HOME}/.local/bin:${PATH}"
     fi
-    curl -fsSL \
-        -H "Accept: application/vnd.github+json" \
-        -H "User-Agent: run_onchange-install-packages" \
-        "${auth[@]}" \
-        "https://api.github.com/repos/${repo}/releases/latest"
+    if ! command -v mise >/dev/null 2>&1; then
+        echo "❌ mise not found on PATH after install (expected ${HOME}/.local/bin/mise)" >&2
+        return 1
+    fi
+    # Activate for this process so later steps (uv tools, fish check) see mise bins.
+    eval "$(mise activate bash)"
+    _ensure_mise_fish_hook
 }
 
-# Downloads a .tar.gz from $2 into a fresh temp dir and extracts it there.
-# Echoes the temp dir path on success; caller must rm -rf it when done.
-_download_extract_tarball() {
-    local tar_file=$1 url=$2 tmpdir
-    tmpdir=$(mktemp -d)
-    curl -fsSL -o "${tmpdir}/${tar_file}" "$url" || { rm -rf "$tmpdir"; return 1; }
-    tar -xzf "${tmpdir}/${tar_file}" -C "$tmpdir"
-    printf '%s\n' "$tmpdir"
+# conf.d is alphabetical: mise must load before fzf plugins / 90-integrations,
+# otherwise those see no fzf/starship after we purge the old ~/.fzf and
+# ~/.local/bin copies.
+_ensure_mise_fish_hook() {
+    local hook="${HOME}/.config/fish/conf.d/00-mise.env.fish"
+    local legacy="${HOME}/.config/fish/conf.d/mise.env.fish"
+    mkdir -p "$(dirname "$hook")"
+    rm -f "$legacy"
+    if [[ -f "$hook" ]] && grep -q 'mise activate fish' "$hook"; then
+        return 0
+    fi
+    cat >"$hook" <<'EOF'
+# Managed by run_onchange_install-packages.sh — mise-managed tools on PATH.
+# Filename 00- so this runs before fzf/starship conf.d hooks.
+if test -x "$HOME/.local/bin/mise"
+    $HOME/.local/bin/mise activate fish | source
+end
+EOF
+    echo "✅ wrote ${hook}"
 }
 
-# Downloads a .deb from $1 and installs it via apt-get; cleans up on success or failure.
-_install_deb() {
-    local url=$1 tmp
-    tmp=$(mktemp /tmp/pkg-XXXXXX.deb)
-    curl -fsSL -o "$tmp" "$url" || { rm -f "$tmp"; return 1; }
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Use-Pty=0 "$tmp"
-    local rc=$?
-    rm -f "$tmp"
-    return $rc
+# Install tools from chezmoi-managed ~/.config/mise/mise.toml (+ mise.lock).
+# cargo.binstall is disabled in that file so cargo:* crates compile quietly.
+_mise_out_filter() {
+    # Match script ✅/📦 style for mise's plain status lines.
+    sed -E \
+        -e 's/^mise all tools are installed$/✅ mise/' \
+        -e 's/^mise All tools are up to date$/✅ mise/'
 }
+
+_mise_run() {
+    mise "$@" 2>&1 | _mise_out_filter
+    return "${PIPESTATUS[0]}"
+}
+
+_mise_install() {
+    local flags=(-y) t
+    [[ "${INSTALL_FORCE:-0}" == 1 ]] && flags+=(-f)
+    if [[ $# -eq 0 ]]; then
+        if [[ "${UPDATE_ONLY:-0}" == 1 ]]; then
+            echo "📦 mise upgrade"
+            _mise_run upgrade "${flags[@]}"
+        else
+            echo "📦 mise install"
+            _mise_run install "${flags[@]}"
+        fi
+        return
+    fi
+    echo "📦 mise install $*"
+    local specs=()
+    for t in "$@"; do
+        specs+=("$t")
+    done
+    _mise_run install "${flags[@]}" "${specs[@]}"
+}
+
+install_mise_tools() {
+    ensure_mise
+    if [[ ! -f "${MISE_CONFIG}" ]]; then
+        echo "❌ missing ${MISE_CONFIG} (chezmoi-managed mise config)" >&2
+        return 1
+    fi
+    mise trust "${MISE_CONFIG}" >/dev/null 2>&1 || true
+    _mise_install
+}
+
+# Remove pre-mise copies of tools now managed by mise (same apply, after mise).
+# Covers apt packages from the old APT_PACKAGES list, GitHub/.deb drop-ins under
+# /usr/local and ~/.local, go install bins, cargo install bins for migrated
+# crates, the eza apt repo, and the old ~/.fzf / ~/.local/go trees. Idempotent.
+# Does not touch rustup/hx (helix stays cargo-built) or unrelated ~/go/bin tools.
+purge_pre_mise_duplicates() {
+    local apt_pkgs=(
+        ripgrep fd-find bat neovim gh jq git-delta
+        eza fastfetch television
+    )
+    local pkg to_purge=()
+    for pkg in "${apt_pkgs[@]}"; do
+        if _apt_pkg_is_installed "$pkg"; then
+            to_purge+=("$pkg")
+        fi
+    done
+    if [[ ${#to_purge[@]} -gt 0 ]]; then
+        echo "💀 Purging pre-mise apt packages: ${to_purge[*]}"
+        _run_apt purge -y -qq "${to_purge[@]}"
+    fi
+
+    # eza was installed via a third-party apt repo; drop the leftover source.
+    if [[ -f /etc/apt/sources.list.d/gierens.list ]] || [[ -f /etc/apt/keyrings/gierens.gpg ]]; then
+        echo "💀 Removing eza (gierens) apt repo"
+        sudo rm -f /etc/apt/sources.list.d/gierens.list /etc/apt/keyrings/gierens.gpg
+    fi
+
+    local f
+    for f in \
+        /usr/local/bin/fd \
+        /usr/local/bin/fx \
+        /usr/local/bin/starship \
+        /usr/local/bin/fastfetch \
+        /usr/local/bin/flashfetch \
+        "${HOME}/.local/bin/bat" \
+        "${HOME}/.local/bin/go" \
+        "${HOME}/.local/bin/gofmt" \
+        "${HOME}/.local/bin/starship" \
+        "${HOME}/.local/bin/scooter" \
+        "${HOME}/.local/bin/lazydocker" \
+        "${HOME}/.local/bin/uv" \
+        "${HOME}/.local/bin/gum" \
+        "${HOME}/.local/bin/lazygit" \
+        "${HOME}/.local/bin/duf" \
+        "${HOME}/.local/bin/fx" \
+        "${HOME}/.local/bin/task" \
+        "${HOME}/go/bin/gum" \
+        "${HOME}/go/bin/lazygit" \
+        "${HOME}/go/bin/duf" \
+        "${HOME}/go/bin/fx" \
+        "${HOME}/go/bin/task" \
+        "${HOME}/go/bin/lazydocker" \
+        "${HOME}/.cargo/bin/dust" \
+        "${HOME}/.cargo/bin/reef" \
+        "${HOME}/.cargo/bin/am"
+    do
+        if [[ -e "$f" || -L "$f" ]]; then
+            echo "🗑️  Removing ${f}"
+            # /usr/local may need sudo; home paths do not.
+            if [[ "$f" == /usr/local/* ]]; then
+                sudo rm -f "$f"
+            else
+                rm -f "$f"
+            fi
+        fi
+    done
+
+    if [[ -d "${HOME}/.fzf" ]]; then
+        echo "🗑️  Removing ${HOME}/.fzf (pre-mise fzf)"
+        rm -rf "${HOME}/.fzf"
+    fi
+    if [[ -d "${HOME}/.local/go" ]]; then
+        echo "🗑️  Removing ${HOME}/.local/go (pre-mise go tarball)"
+        rm -rf "${HOME}/.local/go"
+    fi
+
+    echo "✅ pre-mise duplicates purged"
+}
+
+# -----------------------------------------------------------------------------
+# apt
+# -----------------------------------------------------------------------------
 
 purge_neofetch() {
     if _apt_pkg_is_installed neofetch; then
-        echo "🗑️  Removing neofetch (deprecated)..."
+        echo "💀 Removing neofetch (deprecated)..."
         _run_apt purge -y -qq neofetch
         echo "✅ neofetch purged"
     fi
 }
 
-# apt packages + related cleanup; skipped entirely in --update mode (apt upgrade
-# handles refreshes there). Bundled so the INSTALLERS table stays uniform.
 install_apt_group() {
     [[ "${UPDATE_ONLY:-0}" == 1 ]] && return 0
     install_apt_packages
     purge_neofetch
-    ensure_fd_symlink
 }
 
 install_apt_packages() {
     local packages_to_install=()
     local packages=("${APT_PACKAGES[@]}")
-    local gui_packages=("${APT_GUI_PACKAGES[@]}")
 
-    # Only attempt to install GUI-related packages if a graphical session is detected (X11 or Wayland).
     if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]] || \
        pgrep -x "Xorg" >/dev/null || \
        pgrep -x "wayland" >/dev/null; then
-        packages+=("${gui_packages[@]}")
+        packages+=("${APT_GUI_PACKAGES[@]}")
     fi
 
     if [[ "$IS_RASPI" == 1 ]]; then
-        echo "⚠️  Detected Raspberry Pi OS, excluding fish, gh, and git-delta"
-        packages=($(printf '%s\n' "${packages[@]}" | grep -v -E '^(fish|gh|git-delta)$'))
+        echo "⚠️  Detected Raspberry Pi OS, excluding fish"
+        packages=($(printf '%s\n' "${packages[@]}" | grep -v -E '^fish$'))
     fi
 
     local package
@@ -252,271 +351,118 @@ install_apt_packages() {
         fi
     done
 
-    if [ ${#packages_to_install[@]} -gt 0 ]; then
-        echo "📦 Installing packages: ${packages_to_install[*]}"
-        local unavailable_packages=()
-        local failed_packages=()
-        for package in "${packages_to_install[@]}"; do
-            if ! _apt_pkg_is_available "$package"; then
-                echo "  ⚠️  Skipping $package (not found in apt cache)" >&2
-                unavailable_packages+=("$package")
+    if [ ${#packages_to_install[@]} -eq 0 ]; then
+        echo "✅ All apt packages are already installed"
+        return 0
+    fi
+
+    echo "📦 Installing packages: ${packages_to_install[*]}"
+    local failed_packages=()
+    for package in "${packages_to_install[@]}"; do
+        if ! _apt_pkg_is_available "$package"; then
+            echo "  ⚠️  Skipping $package (not found in apt cache)" >&2
+            continue
+        fi
+        echo "  ⏳ Installing $package..."
+        if _run_apt install -y -qq "$package"; then
+            echo "  ✅ Successfully installed $package"
+        else
+            echo "  ❌ Failed to install $package" >&2
+            failed_packages+=("$package")
+        fi
+    done
+    if [ ${#failed_packages[@]} -gt 0 ]; then
+        echo "⚠️  Packages that failed to install: ${failed_packages[*]}" >&2
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# uv tools (thin layer on top of mise-provided uv)
+# -----------------------------------------------------------------------------
+
+_uv_cmd() {
+    if command -v uv >/dev/null 2>&1; then
+        command -v uv
+        return 0
+    fi
+    if [[ -x "${HOME}/.local/bin/uv" ]]; then
+        printf '%s\n' "${HOME}/.local/bin/uv"
+        return 0
+    fi
+    return 1
+}
+
+install_uv_tools() {
+    local uv_bin tool failed_tools=()
+    uv_bin=$(_uv_cmd || true)
+    if [[ -z "$uv_bin" ]]; then
+        echo "⚠️  uv not on PATH, skipping uv tool installs" >&2
+        return 0
+    fi
+
+    for tool in "${UV_TOOLS[@]}"; do
+        if ! _want_install_cmd "$tool"; then
+            echo "✅ ${tool}"
+            continue
+        fi
+        if [[ "${UPDATE_ONLY:-0}" == 1 ]] && command -v "$tool" >/dev/null 2>&1; then
+            echo "📦 Upgrading ${tool} via uv..."
+            if "$uv_bin" tool upgrade "$tool" &>/dev/null; then
+                echo "✅ ${tool} upgraded"
                 continue
             fi
-            echo "  ⏳ Installing $package..."
-            if _run_apt install -y -qq "$package"; then
-                echo "  ✅ Successfully installed $package"
-            else
-                echo "  ❌ Failed to install $package" >&2
-                failed_packages+=("$package")
-            fi
-        done
-        if [ ${#failed_packages[@]} -gt 0 ]; then
-            echo "⚠️  Packages that failed to install: ${failed_packages[*]}" >&2
+            # ponytail: upgrade can fail if uv doesn't track the tool; fall back to install.
         fi
-    else
-        echo "✅ All packages are already installed"
-    fi
-}
-
-ensure_fd_symlink() {
-    # Without --force: satisfied if `fd` is on PATH. With --force: still try fdfind→fd symlink when applicable.
-    if command -v fd >/dev/null 2>&1 && [[ "${INSTALL_FORCE:-0}" != 1 ]]; then
-        echo "✅ fd"
-    elif command -v fdfind >/dev/null 2>&1; then
-        if [ -x /usr/bin/fdfind ]; then
-            if [ -e /usr/local/bin/fd ]; then
-                echo "ℹ️  /usr/local/bin/fd already exists"
-            else
-                echo "🔗 Creating fd symlink for fdfind..."
-                sudo ln -s /usr/bin/fdfind /usr/local/bin/fd
-                echo "✅ fd symlink created"
-            fi
+        echo "📦 Installing ${tool} via uv..."
+        if "$uv_bin" tool install "$tool"; then
+            echo "✅ ${tool} installed"
         else
-            echo "⚠️  fdfind binary not found at /usr/bin/fdfind, cannot create fd link" >&2
+            echo "❌ uv tool install ${tool} failed" >&2
+            failed_tools+=("$tool")
         fi
-    else
-        if command -v fd >/dev/null 2>&1; then
-            echo "✅ fd command is available"
-        else
-            echo "⚠️  Neither fd nor fdfind is available" >&2
-        fi
-    fi
-}
-
-install_fzf() {
-    if ! _want_install_cmd fzf; then
-        echo "✅ Fzf"
-        return 0
-    fi
-    echo "🌐 Installing fzf from github"
-    rm -rf ~/.fzf
-    git clone -q --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
-    # Upstream install has no --quiet; curl is invoked without -s, so silence the script output.
-    if ! ~/.fzf/install --no-bash --no-fish --no-zsh --no-key-bindings --no-completion --no-update-rc \
-        >/dev/null 2>&1; then
-        echo "❌ fzf install failed; run ~/.fzf/install manually to see errors" >&2
-        return 1
-    fi
-}
-
-install_fastfetch() {
-    if ! _want_install_cmd fastfetch; then
-        echo "✅ Fastfetch"
-        return 0
-    fi
-
-    local m os ver deb_arch
-    m="$(uname -m)"
-    os="$(uname -s)"
-
-    case "$m" in
-        x86_64|amd64) deb_arch=amd64 ;;
-        aarch64|arm64) deb_arch=aarch64 ;;
-        i686|i386)     deb_arch=i686 ;;
-        *)
-            echo "❌ No fastfetch binary for architecture ${m}" >&2
-            return 1
-            ;;
-    esac
-
-    local release_json
-    release_json=$(_github_release_json "fastfetch-cli/fastfetch")
-    ver=$(printf '%s' "$release_json" | jq -r '.tag_name')
-    if [[ -z "$ver" || "$ver" == "null" ]]; then
-        echo "❌ Failed to resolve fastfetch release (GitHub API)." >&2
-        return 1
-    fi
-
-    echo "🌐 Installing fastfetch ${ver} from GitHub..."
-
-    # On Debian/Ubuntu try .deb first (polyfilled for old glibc, then regular).
-    if [[ "$os" == Linux ]] && command -v apt-get >/dev/null 2>&1 && [[ -f /etc/debian_version ]]; then
-        local deb_file deb_url
-        for deb_file in "fastfetch-linux-${deb_arch}-polyfilled.deb" "fastfetch-linux-${deb_arch}.deb"; do
-            deb_url=$(printf '%s' "$release_json" | jq -r --arg name "$deb_file" \
-                '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
-            if [[ -n "$deb_url" ]]; then break; fi
-        done
-
-        if [[ -n "$deb_url" ]]; then
-            echo "⬇️  Downloading ${deb_file}..."
-            if _install_deb "$deb_url"; then
-                echo "✅ fastfetch ${ver} installed"
-                return 0
-            fi
-            echo "⚠️  .deb install failed, falling back to tarball..." >&2
-        else
-            echo "⚠️  No .deb release asset for ${deb_arch}, falling back to tarball..." >&2
-        fi
-    fi
-
-    # Fallback: tarball install
-    local tar_file tar_url tmpdir
-    for tar_file in "fastfetch-linux-${deb_arch}-polyfilled.tar.gz" "fastfetch-linux-${deb_arch}.tar.gz"; do
-        tar_url=$(printf '%s' "$release_json" | jq -r --arg name "$tar_file" \
-            '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
-        if [[ -n "$tar_url" ]]; then break; fi
     done
 
-    if [[ -z "$tar_url" ]]; then
-        echo "❌ No release asset found for fastfetch ${deb_arch}" >&2
+    if [ ${#failed_tools[@]} -gt 0 ]; then
+        echo "⚠️  uv tools that failed to install: ${failed_tools[*]}" >&2
         return 1
-    fi
-
-    echo "⬇️  Downloading ${tar_file}..."
-    tmpdir=$(_download_extract_tarball "$tar_file" "$tar_url") || return 1
-    local extract_dir="${tar_file%.tar.gz}"
-    sudo install -m 0755 "${tmpdir}/${extract_dir}/usr/bin/fastfetch" "/usr/local/bin/fastfetch"
-    sudo install -m 0755 "${tmpdir}/${extract_dir}/usr/bin/flashfetch" "/usr/local/bin/flashfetch" 2>/dev/null || true
-    rm -rf "$tmpdir"
-    echo "✅ fastfetch ${ver} installed (tarball)"
-}
-
-install_starship() {
-    if ! _want_install_cmd starship; then
-        echo "✅ Starship"
-        return 0
-    fi
-    echo "🌐 Installing starship..."
-    mkdir -p "${HOME}/.local/bin"
-    set +e
-    set -o pipefail
-    local output
-    output=$(curl -fsSL https://starship.rs/install.sh | sh -s -- -y -b "${HOME}/.local/bin" 2>&1)
-    local starship_exit_code=$?
-    set +o pipefail
-    set -e
-    if [[ "$starship_exit_code" -eq 0 ]] && printf '%s' "$output" | grep -Fq "Starship latest installed"; then
-        echo "✅ Starship installed successfully"
-    else
-        echo "❌ Starship installation had issues (exit code: ${starship_exit_code}, or missing success line), but continuing..." >&2
     fi
 }
 
-install_eza() {
-    if ! _want_install_cmd eza; then
-        echo "✅ Eza"
+# -----------------------------------------------------------------------------
+# helix (compiled from source — not the mise/aqua prebuild)
+# -----------------------------------------------------------------------------
+
+_cargo_cmd() {
+    if command -v cargo >/dev/null 2>&1; then
+        command -v cargo
         return 0
     fi
-    # In update mode, skip apt-repo-based installs — apt upgrade handles them.
-    if [[ "${UPDATE_ONLY:-0}" == 1 ]]; then
-        echo "✅ Eza (apt upgrade handles updates)"
+    if [[ -x "${HOME}/.cargo/bin/cargo" ]]; then
+        printf '%s\n' "${HOME}/.cargo/bin/cargo"
         return 0
     fi
-    echo "🔧 Adding eza repository ..."
-    sudo mkdir -p /etc/apt/keyrings
-    wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | sudo gpg --batch --yes --dearmor -o /etc/apt/keyrings/gierens.gpg
-    echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de stable main" | sudo tee /etc/apt/sources.list.d/gierens.list >/dev/null
-    sudo chmod 644 /etc/apt/keyrings/gierens.gpg /etc/apt/sources.list.d/gierens.list
-    _run_apt update -qq
-    _run_apt install -y -qq eza
-}
-
-install_tv() {
-    if ! _want_install_cmd tv; then
-        echo "✅ tv"
-        return 0
-    fi
-    if [[ "$IS_RASPI" == 1 ]]; then
-        echo "⚠️  tv is not available on Raspberry Pi OS -- or the install script is broken" >&2
-        return 1
-    fi
-    echo "🌐 Installing tv..."
-
-    local release_json ver os m
-    release_json=$(_github_release_json "alexpasmantier/television")
-    ver=$(printf '%s' "$release_json" | jq -r '.tag_name')
-    if [[ -z "$ver" ]]; then
-        echo "❌ Failed to resolve television release (GitHub API)." >&2
-        return 1
-    fi
-
-    os=$(uname -s)
-    m=$(uname -m)
-
-    if [[ "$os" == Linux ]] && command -v apt-get >/dev/null 2>&1 && [[ -f /etc/debian_version ]]; then
-        local deb_arch deb_file url
-        case "$m" in
-            x86_64|amd64) deb_arch=x86_64-unknown-linux-musl ;;
-            aarch64|arm64) deb_arch=aarch64-unknown-linux-gnu ;;
-            *)
-                echo "❌ No television .deb for architecture ${m}" >&2
-                return 1
-                ;;
-        esac
-        deb_file="tv-${ver}-${deb_arch}.deb"
-        url="https://github.com/alexpasmantier/television/releases/download/${ver}/${deb_file}"
-        if _install_deb "$url"; then
-            echo "✅ tv ${ver} installed"
-            return 0
-        fi
-        echo "❌ apt failed to install television .deb" >&2
-        return 1
-    fi
-
-    local binary_target dirname tarball url tmpdir
-    local install_dir=/usr/local/bin
-    case "${os}-${m}" in
-        Linux-x86_64|Linux-amd64) binary_target=x86_64-unknown-linux-musl ;;
-        Linux-aarch64|Linux-arm64) binary_target=aarch64-unknown-linux-gnu ;;
-        *)
-            echo "❌ Unsupported OS/arch for bundled tv installer: ${os} (${m})" >&2
-            return 1
-            ;;
-    esac
-    dirname="tv-${ver}-${binary_target}"
-    tarball="${dirname}.tar.gz"
-    url="https://github.com/alexpasmantier/television/releases/download/${ver}/${tarball}"
-    tmpdir=$(_download_extract_tarball "$tarball" "$url") || return 1
-    sudo mkdir -p "$install_dir"
-    sudo mv "${tmpdir}/${dirname}/tv" "${install_dir}/tv"
-    sudo chmod +x "${install_dir}/tv"
-    rm -rf "$tmpdir"
-    echo "✅ tv ${ver} installed"
+    return 1
 }
 
 # Compile the latest Helix editor from source using Cargo.
-# Requires Rust/cargo to be installed before this function is called.
-# Source is cloned/updated at ~/projects/helix; the hx binary is placed in
-# ~/.cargo/bin/ by `cargo install` and the runtime directory is symlinked
-# into ~/.config/helix/runtime so Helix finds grammars and themes.
+# Requires Rust/cargo (via mise) before this runs.
+# Source lives at ~/projects/helix; hx goes to ~/.cargo/bin/; runtime is
+# symlinked into ~/.config/helix/runtime.
+#
+# Do not trust `hx -V`'s semver alone: apt helix and a source build at the same
+# tag both report e.g. 25.07.1. Match the parenthesized git hash to source HEAD.
 install_helix_from_source() {
-    # Skip if hx is already present, unless it's the old pre-built release (25.07.1)
-    # which should be migrated to the compiled-from-source version.
-    if command -v hx >/dev/null 2>&1; then
-        local current_ver
-        current_ver=$(hx -V 2>/dev/null | awk '{print $2}')
-        if [[ "$current_ver" != "25.07.1" ]] && [[ "${INSTALL_FORCE:-0}" != 1 ]] && [[ "${UPDATE_ONLY:-0}" != 1 ]]; then
-            echo "✅ helix"
-            return 0
-        fi
-    fi
-
     local cargo_cmd
     cargo_cmd=$(_cargo_cmd || true)
     if [[ -z "$cargo_cmd" ]]; then
         echo "❌ cargo is not available; cannot build helix from source" >&2
         return 1
+    fi
+
+    # Apt/distro helix shadows or confuses PATH; source build owns ~/.cargo/bin/hx.
+    if _apt_pkg_is_installed helix; then
+        echo "💀 Purging apt helix (using source build instead)"
+        _run_apt purge -y -qq helix
     fi
 
     # Migrate from old pre-built release install: remove /usr/local/lib/helix and
@@ -543,17 +489,23 @@ install_helix_from_source() {
         git clone https://github.com/helix-editor/helix "$src_dir"
     fi
 
-    local commit_after
+    local commit_after src_short hx_ver hx_hash
     commit_after=$(git -C "$src_dir" rev-parse HEAD 2>/dev/null || true)
+    src_short=$(git -C "$src_dir" rev-parse --short=8 HEAD 2>/dev/null || true)
 
-    # Skip compilation if the repo has not changed and hx is already installed.
+    # hx -V → "helix 25.07.1 (079a789e)" — hash is what distinguishes builds.
+    hx_ver=$(hx -V 2>/dev/null || true)
+    hx_hash=$(sed -n 's/.*(\([0-9a-f]\{7,\}\)).*/\1/p' <<<"$hx_ver" | head -1)
+
+    # Skip compilation if source unchanged, not forcing, and running hx matches HEAD.
     if [[ -n "$commit_before" ]] && [[ "$commit_before" == "$commit_after" ]] \
-        && command -v hx >/dev/null 2>&1 && [[ "${INSTALL_FORCE:-0}" != 1 ]]; then
+        && [[ -n "$hx_hash" ]] && [[ "$commit_after" == "$hx_hash"* ]] \
+        && [[ "${INSTALL_FORCE:-0}" != 1 ]]; then
         local ver
         ver=$(git -C "$src_dir" describe --tags --abbrev=0 2>/dev/null || echo "unknown")
         mkdir -p "${HOME}/.config/helix"
         ln -Tsf "${src_dir}/runtime" "${HOME}/.config/helix/runtime"
-        echo "✅ helix ${ver} (no changes in repository, skipping recompile)"
+        echo "✅ helix ${ver} (${src_short}, no changes in repository, skipping recompile)"
         return 0
     fi
 
@@ -576,311 +528,9 @@ install_helix_from_source() {
     echo "✅ helix ${ver} compiled and installed (runtime: ${src_dir}/runtime)"
 }
 
-install_scooter() {
-    if ! _want_install_cmd scooter; then
-        echo "✅ scooter"
-        return 0
-    fi
-
-    local m os
-    m="$(uname -m)"
-    os="$(uname -s)"
-
-    local asset_suffix
-    case "${os}-${m}" in
-        Linux-x86_64|Linux-amd64)
-            asset_suffix="x86_64-unknown-linux-musl" ;;
-        Linux-aarch64|Linux-arm64)
-            asset_suffix="aarch64-unknown-linux-musl" ;;
-        *)
-            echo "❌ Unsupported OS/arch for scooter: ${os} (${m})" >&2
-            return 1 ;;
-    esac
-
-    local release_json ver
-    release_json=$(_github_release_json "thomasschafer/scooter")
-    ver=$(printf '%s' "$release_json" | jq -r '.tag_name')
-    if [[ -z "$ver" || "$ver" == "null" ]]; then
-        echo "❌ Failed to resolve scooter release (GitHub API)." >&2
-        return 1
-    fi
-
-    echo "🌐 Installing scooter ${ver}..."
-
-    local asset_name="scooter-${ver}-${asset_suffix}.tar.gz"
-    local asset_url
-    asset_url=$(printf '%s' "$release_json" | jq -r --arg name "$asset_name" \
-        '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
-
-    if [[ -z "$asset_url" ]]; then
-        echo "❌ No release asset named ${asset_name}" >&2
-        return 1
-    fi
-
-    local install_dir="${HOME}/.local/bin"
-    mkdir -p "$install_dir"
-
-    echo "⬇️  Downloading ${asset_name}..."
-    local tmpdir
-    tmpdir=$(_download_extract_tarball "$asset_name" "$asset_url") || return 1
-
-    local extracted_dir="${tmpdir}/scooter-${ver}-${asset_suffix}"
-    if [[ -f "${extracted_dir}/scooter" ]]; then
-        mv "${extracted_dir}/scooter" "${install_dir}/scooter"
-    elif [[ -f "${tmpdir}/scooter" ]]; then
-        mv "${tmpdir}/scooter" "${install_dir}/scooter"
-    else
-        echo "❌ Could not find scooter binary in extracted archive" >&2
-        ls -la "${tmpdir}" >&2
-        rm -rf "$tmpdir"
-        return 1
-    fi
-
-    chmod +x "${install_dir}/scooter"
-    rm -rf "$tmpdir"
-    echo "✅ scooter ${ver} installed"
-}
-
-install_amoxide() {
-    if [[ "${INSTALL_FORCE:-0}" != 1 ]] && [[ -x "$HOME/.cargo/bin/am" ]]; then
-        echo "✅ amoxide"
-        return 0
-    fi
-    echo "🌐 Installing amoxide..."
-    if ! curl -fsSL https://github.com/sassman/amoxide-rs/releases/latest/download/amoxide-installer.sh | sh; then
-        echo "❌ amoxide installation failed" >&2
-        return 1
-    fi
-    echo "✅ amoxide installed"
-}
-
-install_go() {
-    if ! _want_install_cmd go; then
-        echo "✅ Go"
-        return 0
-    fi
-
-    echo "🌐 Installing Go..."
-    local os arch filename url install_dir install_parent tmpdir
-    os=linux
-    case "$(uname -m)" in
-        x86_64|amd64) arch=amd64 ;;
-        aarch64|arm64) arch=arm64 ;;
-        i386|i686) arch=386 ;;
-        *)
-            echo "❌ Unsupported machine type for Go: $(uname -m)" >&2
-            return 1
-            ;;
-    esac
-
-    filename=$(curl -fsSL 'https://go.dev/dl/?mode=json' \
-        | jq -r --arg suffix ".${os}-${arch}.tar.gz" \
-            '.[0].files[] | select(.filename | endswith($suffix)) | .filename' \
-        | head -n1)
-    if [[ -z "$filename" ]]; then
-        echo "❌ Failed to resolve latest Go release for ${os}-${arch}" >&2
-        return 1
-    fi
-
-    url="https://go.dev/dl/${filename}"
-    install_dir="${GO_INSTALL_DIR:-"$HOME/.local/go"}"
-    install_parent="$(dirname "$install_dir")"
-    tmpdir=$(mktemp -d)
-    curl -fsSL -o "${tmpdir}/${filename}" "$url" || { rm -rf "$tmpdir"; return 1; }
-
-    tar -C "$tmpdir" -xzf "${tmpdir}/${filename}"
-    rm -rf "$install_dir"
-    mkdir -p "$install_parent" "$HOME/.local/bin"
-    mv "${tmpdir}/go" "$install_dir"
-    rm -rf "$tmpdir"
-
-    ln -sf "${install_dir}/bin/go" "$HOME/.local/bin/go"
-    ln -sf "${install_dir}/bin/gofmt" "$HOME/.local/bin/gofmt"
-    echo "🐹 $("${install_dir}/bin/go" version)"
-}
-
-install_go_packages() {
-    local go_cmd
-    go_cmd=$(command -v go 2>/dev/null || true)
-    if [[ -z "$go_cmd" ]]; then
-        local install_dir="${GO_INSTALL_DIR:-"$HOME/.local/go"}"
-        if [[ -x "${install_dir}/bin/go" ]]; then
-            go_cmd="${install_dir}/bin/go"
-        elif [[ -x "$HOME/.local/bin/go" ]]; then
-            go_cmd="$HOME/.local/bin/go"
-        else
-            echo "❌ Go is not available, cannot install Go packages" >&2
-            return 1
-        fi
-    fi
-
-    local gobin="${GO_BIN_DIR:-"$HOME/.local/bin"}"
-    mkdir -p "$gobin"
-
-    local package command_name failed_packages=()
-    for package in "${GO_PACKAGES[@]}"; do
-        command_name="${package%@*}"
-        command_name="${command_name##*/}"
-        if [[ "${INSTALL_FORCE:-0}" != 1 ]] && { command -v "$command_name" >/dev/null 2>&1 || [[ -x "$gobin/$command_name" ]]; }; then
-            echo "✅ ${command_name}"
-            continue
-        fi
-
-        echo "🐹 Installing ${package}..."
-        if GOBIN="$gobin" "$go_cmd" install "$package"; then
-            echo "✅ Installed ${command_name}"
-        else
-            echo "❌ Failed to install ${package}" >&2
-            failed_packages+=("$package")
-        fi
-    done
-
-    if [ ${#failed_packages[@]} -gt 0 ]; then
-        echo "⚠️  Go packages that failed to install: ${failed_packages[*]}" >&2
-        return 1
-    fi
-}
-
-_cargo_cmd() {
-    if command -v cargo >/dev/null 2>&1; then
-        command -v cargo
-        return 0
-    fi
-    if [[ -x "${HOME}/.cargo/bin/cargo" ]]; then
-        printf '%s\n' "${HOME}/.cargo/bin/cargo"
-        return 0
-    fi
-    return 1
-}
-
-_uv_cmd() {
-    if command -v uv >/dev/null 2>&1; then
-        command -v uv
-        return 0
-    fi
-    if [[ -x "${HOME}/.local/bin/uv" ]]; then
-        printf '%s\n' "${HOME}/.local/bin/uv"
-        return 0
-    fi
-    if [[ -x "${HOME}/.cargo/bin/uv" ]]; then
-        printf '%s\n' "${HOME}/.cargo/bin/uv"
-        return 0
-    fi
-    return 1
-}
-
-install_uv() {
-    if ! _want_install_cmd uv; then
-        echo "✅ uv"
-        return 0
-    fi
-    echo "🌐 Installing uv (astral)..."
-    # Official installer; non-interactive; adds ~/.local/bin/uv by default.
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    echo "✅ uv installed"
-}
-
-install_uv_tools() {
-    local uv_bin tool failed_tools=()
-    uv_bin=$(_uv_cmd || true)
-    if [[ -z "$uv_bin" ]]; then
-        echo "⚠️  uv not on PATH, skipping uv tool installs" >&2
-        return 0
-    fi
-    export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
-
-    for tool in "${UV_TOOLS[@]}"; do
-        if ! _want_install_cmd "$tool"; then
-            echo "✅ ${tool}"
-            continue
-        fi
-        if [[ "${UPDATE_ONLY:-0}" == 1 ]] && command -v "$tool" >/dev/null 2>&1; then
-            echo "📦 Upgrading ${tool} via uv..."
-            if "$uv_bin" tool upgrade "$tool" &>/dev/null; then
-                echo "✅ ${tool} upgraded"
-                continue
-            else
-                echo "⚠️  uv tool upgrade ${tool} failed (trying install...)"
-                # ponytail: upgrade can fail if uv doesn't track the tool (e.g. non-uv install).
-                # Fall back to install — same result, just clobbers the shim.
-            fi
-        fi
-        echo "📦 Installing ${tool} via uv..."
-        if "$uv_bin" tool install "$tool"; then
-            echo "✅ ${tool} installed"
-        else
-            echo "❌ uv tool install ${tool} failed" >&2
-            failed_tools+=("$tool")
-        fi
-    done
-
-    if [ ${#failed_tools[@]} -gt 0 ]; then
-        echo "⚠️  uv tools that failed to install: ${failed_tools[*]}" >&2
-        return 1
-    fi
-}
-
-# Run `cargo install <package>`; suppress the noisy "already installed" output
-# and print a single ✅/❌ line.  Passes extra args straight to cargo.
-# Usage: _cargo_install <cargo-cmd> <package> [extra cargo args...]
-_cargo_install() {
-    local cargo_cmd=$1 package=$2
-    shift 2
-    local output rc
-    output=$("$cargo_cmd" install "$package" "$@" 2>&1)
-    rc=$?
-    if [[ $rc -eq 0 ]]; then
-        if grep -q "Ignored package" <<< "$output"; then
-            echo "✅ ${package}"
-        else
-            echo "✅ Installed ${package}"
-        fi
-    else
-        printf '%s\n' "$output" >&2
-        echo "❌ Failed to install ${package}" >&2
-        return 1
-    fi
-}
-
-install_rust() {
-    local cargo_cmd
-    cargo_cmd=$(_cargo_cmd || true)
-
-    if [[ -n "$cargo_cmd" ]] && [[ "${INSTALL_FORCE:-0}" != 1 ]]; then
-        echo "✅ Rust ($("$cargo_cmd" --version 2>/dev/null | awk '{print $2}'))"
-        return 0
-    fi
-    echo "🌐 Installing Rust via rustup..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
-    echo "✅ Rust installed"
-}
-
-install_cargo_packages() {
-    local cargo_cmd
-    cargo_cmd=$(_cargo_cmd || true)
-    if [[ -z "$cargo_cmd" ]]; then
-        echo "❌ cargo is not available, cannot install cargo packages" >&2
-        return 1
-    fi
-
-    local package failed_packages=()
-    for package in "${CARGO_PACKAGES[@]}"; do
-        if [[ "${INSTALL_FORCE:-0}" != 1 ]] && [[ "${UPDATE_ONLY:-0}" != 1 ]] \
-           && command -v "$package" >/dev/null 2>&1; then
-            echo "✅ ${package}"
-            continue
-        fi
-
-        if ! _cargo_install "$cargo_cmd" "$package"; then
-            failed_packages+=("$package")
-        fi
-    done
-
-    if [ ${#failed_packages[@]} -gt 0 ]; then
-        echo "⚠️  Cargo packages that failed to install: ${failed_packages[*]}" >&2
-        return 1
-    fi
-}
+# -----------------------------------------------------------------------------
+# fonts / shell (not mise-shaped)
+# -----------------------------------------------------------------------------
 
 install_firacode_nerd_font_if_gui() {
     if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
@@ -922,28 +572,6 @@ install_jetbrains_mono_font_if_gui() {
     echo "✅ JetBrainsMono installed"
 }
 
-install_task() {
-    if ! _want_install_cmd task; then
-        echo "✅ task (taskfile.dev)"
-        return 0
-    fi
-    # In update mode, skip apt-repo-based installs — apt upgrade handles them.
-    if [[ "${UPDATE_ONLY:-0}" == 1 ]]; then
-        echo "✅ task (apt upgrade handles updates)"
-        return 0
-    fi
-    echo "🔧 Adding taskfile.dev (Cloudsmith) repository..."
-    curl -1sLf 'https://dl.cloudsmith.io/public/task/task/setup.deb.sh' | sudo -E bash >/dev/null 2>&1
-    _run_apt install -y -qq task
-    local ver
-    ver=$(task --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
-    if [[ -n "$ver" ]]; then
-        echo "✅ task ${ver} installed"
-    else
-        echo "✅ task installed"
-    fi
-}
-
 change_shell_to_fish() {
     local fish_path
     fish_path=$(command -v fish 2>/dev/null || true)
@@ -969,12 +597,24 @@ change_shell_to_fish() {
     fi
 }
 
+_list_things() {
+    local entry
+    for entry in "${INSTALLERS[@]}"; do
+        printf '%s\n' "${entry%%:*}"
+    done
+    export PATH="${HOME}/.local/bin:${PATH}"
+    if command -v mise >/dev/null 2>&1; then
+        mise ls -g --no-header 2>/dev/null | awk 'NF { print $1 }'
+    fi
+}
+
 _usage() {
     echo "Usage: ${0##*/} [--force [name...]] [--update] [--list] [--help]"
     echo ""
     echo "  -f, --force [name...]  Re-run installers. With names, force only those things"
-    echo "                         (e.g. --force helix fzf); assumes their prerequisites"
-    echo "                         already exist. Bare --force re-runs everything."
+    echo "                         (e.g. --force helix fzf cargo:reef-shell). Non-installer"
+    echo "                         names are passed to mise install as-is. Bare --force"
+    echo "                         re-runs everything."
     echo "  --update               Re-run non-apt installers only (for periodic updates)"
     echo "  -l, --list             List the installable thing names and exit"
 }
@@ -988,7 +628,6 @@ main() {
             -f|--force)
                 INSTALL_FORCE=1
                 shift
-                # Consume following non-flag args as targeted thing names.
                 while [[ $# -gt 0 && "$1" != -* ]]; do
                     FORCE_TARGETS+=("$1")
                     shift
@@ -999,7 +638,7 @@ main() {
                 shift
                 ;;
             -l|--list)
-                printf '%s\n' "${INSTALLERS[@]%%:*}"
+                _list_things
                 exit 0
                 ;;
             -h|--help)
@@ -1018,23 +657,21 @@ main() {
 
     echo "🛠️ Install packages ..."
 
-    # Targeted force: validate all names first, then run only those installers.
     if [[ ${#FORCE_TARGETS[@]} -gt 0 ]]; then
-        local name fn bad=0
+        local name fn
+        local mise_targets=()
         for name in "${FORCE_TARGETS[@]}"; do
-            if ! _installer_for "$name" >/dev/null; then
-                echo "❌ Unknown thing: $name" >&2
-                bad=1
+            if fn=$(_installer_for "$name"); then
+                "$fn"
+            else
+                # Not an installer name — hand to mise (id must match mise.toml / registry).
+                mise_targets+=("$name")
             fi
         done
-        if [[ "$bad" == 1 ]]; then
-            echo "Available: ${INSTALLERS[*]%%:*}" >&2
-            exit 1
+        if [[ ${#mise_targets[@]} -gt 0 ]]; then
+            ensure_mise
+            _mise_install "${mise_targets[@]}"
         fi
-        for name in "${FORCE_TARGETS[@]}"; do
-            fn=$(_installer_for "$name")
-            "$fn"
-        done
         return
     fi
 

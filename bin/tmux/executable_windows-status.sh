@@ -44,11 +44,12 @@ command_icon() {
         vi|nvim)                printf '✏️' ;;
         hx)                     printf '🧬' ;;
         rm)                     printf '💀' ;;
-        du)                     printf '📊' ;;
+        du|htop)                printf '📊' ;;
         pi|llm|aichat|copilot)  printf '🧠' ;;
         bat|less)               printf '📃' ;;
         apt)                    printf '🔧' ;;
         man)                    printf '📖' ;;
+        "./pc")                 printf '👨‍💻' ;;
         *)                      printf '%s' "$1" ;;
     esac
 }
