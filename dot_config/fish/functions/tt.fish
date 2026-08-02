@@ -87,6 +87,9 @@ function tt --description 'Tmux session switcher. `tt <name>` attach or create. 
     set -l new_marker "✨"
     set -l preview_command "fish -c 'set -l session (string split -m 1 : -- \$argv[1])[1]; if test \"\$session\" = \"$new_marker\"; echo \"Create a new tmux session\"; exit 0; end; echo \"━━━ \$session ━━━\"; command tmux list-windows -t \"\$session\" -F \"  #{window_index}: #{window_name}#{?window_active, ●,}\" 2>/dev/null; echo; echo \"━━━ Active pane content ━━━\"; command tmux capture-pane -t \"\$session\" -p -e 2>/dev/null | head -30' -- {}"
 
+    set -l kill_cmd "fish -c 'set -l s (string trim -- \$argv[1]); if test \"\$s\" = \"$new_marker\"; exit 0; end; command tmux kill-session -t \"\$s\" 2>/dev/null' --"
+    set -l reload_cmd "fish -c 'command tmux list-sessions -F \"#{session_name}: #{session_windows} windows (#{session_attached} attached)\" 2>/dev/null; printf \"%s\\n\" \"$new_marker: new session\"'"
+
     set -l selection (
         begin
             command tmux list-sessions -F "#{session_name}: #{session_windows} windows (#{session_attached} attached)" 2>/dev/null
@@ -94,8 +97,10 @@ function tt --description 'Tmux session switcher. `tt <name>` attach or create. 
         end | fzf --height=60% \
             --reverse \
             --border \
-            --header="Select tmux session  (Ctrl-N: new)" \
+            --delimiter=':' \
+            --header="Select tmux session  (Ctrl-N: new  Ctrl-K: kill)" \
             --bind="ctrl-n:last+accept" \
+            --bind="ctrl-k:execute-silent($kill_cmd {1})+reload($reload_cmd)" \
             --preview="$preview_command" \
             --preview-window=right:50%:wrap
     )
