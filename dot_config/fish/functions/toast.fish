@@ -1,10 +1,10 @@
 function toast
-    argparse 'i/icon=' 's/stick' -- $argv
+    argparse 'i/icon=' 's/stick' 'f/force' 'd/duration=' -- $argv
     or return
 
     set -l text (string join ' ' -- $argv)
     if test -z "$text"
-        echo "usage: toast [-i ICON] MESSAGE" >&2
+        echo "usage: toast [-i ICON] [-f] [-d MS] [-s] MESSAGE" >&2
         return 1
     end
 
@@ -19,12 +19,15 @@ function toast
 
     if command -v notify-send >/dev/null 2>&1
         if test -n "$DISPLAY" -o -n "$WAYLAND_DISPLAY"
-            if not __is_terminal_focused
+            if set -q _flag_force; or not __is_terminal_focused
                 set -l timeout 3500
+                if set -q _flag_duration
+                    set timeout $_flag_duration
+                end
                 if set -q _flag_stick
                     set timeout 0
                 end
-                command notify-send -t $timeout "$text" 2>/dev/null &
+                command notify-send -t $timeout "$message" 2>/dev/null &
             end
         end
     end

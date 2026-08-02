@@ -113,6 +113,24 @@ agent_state() {
     esac
 }
 
+# Desktop/tmux toast via fish; tmux-only fallback when fish is unavailable.
+agent_toast() {
+    local icon="$1"; shift
+    local msg="$*"
+    if command -v fish >/dev/null 2>&1; then
+        export TOAST_ICON="$icon" TOAST_MSG="$msg"
+        fish -c '
+            set -l flags
+            set -q TOAST_FORCE; and set -a flags -f
+            set -q TOAST_DURATION; and set -a flags -d $TOAST_DURATION
+            toast -i "$TOAST_ICON" $flags -- "$TOAST_MSG"
+        ' 2>/dev/null &
+        unset TOAST_FORCE TOAST_DURATION
+    elif command -v tmux >/dev/null 2>&1; then
+        tmux display-message " $icon $msg" 2>/dev/null &
+    fi
+}
+
 if [[ "$1" == --test ]]; then
     t() { local want="$1"; shift; local got; got="$(agent_state "$@")"
           [[ "$got" == "$want" ]] || { echo "FAIL: agent_state $* -> '$got', want '$want'"; exit 1; }; }
@@ -286,6 +304,24 @@ if [[ -n "$pane_id" && "$cmd" =~ ^(claude|hermes|pi|copilot|cursor-agent)$ ]]; t
         tmux set -pt "$pane_id" -u @agent_done 2>/dev/null
     elif [[ "$prev" == working && "$state" == idle ]]; then
         tmux set -pt "$pane_id" @agent_done 1 2>/dev/null
+    fi
+
+    # One-shot desktop alerts on state edges (not every status refresh).
+    if [[ -n "$prev" ]]; then
+        case "$cmd" in
+            cursor-agent) agent_name='Cursor Agent' ;;
+            claude)         agent_name='Claude' ;;
+            hermes)         agent_name='Hermes' ;;
+            copilot)        agent_name='Copilot' ;;
+            pi)             agent_name='Pi' ;;
+        esac
+        win_idx="$(tmux display-message -p -t "$pane_id" '#{window_index}' 2>/dev/null)"
+        notify_body="tmux window ${win_idx:-?} · ${info:-$path}"
+        if [[ "$prev" != blocked && "$state" == blocked ]]; then
+            TOAST_FORCE=1 TOAST_DURATION=8000 agent_toast '🔔' "$agent_name needs your input — $notify_body"
+        elif [[ "$is_current" != 1 && "$prev" == working && "$state" == idle ]]; then
+            TOAST_DURATION=5000 agent_toast '💡' "$agent_name finished — $notify_body"
+        fi
     fi
 
     case "$state" in
