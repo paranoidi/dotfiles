@@ -39,9 +39,9 @@
 	stash-staged = stash --staged
 	stash-unstaged = stash --keep-index
 [credential "https://github.com"]
-    helper = !~/.local/share/mise/shims/gh auth git-credential
+	helper = !~/.local/share/mise/shims/gh auth git-credential
 [credential "https://gist.github.com"]
-    helper = !~/.local/share/mise/shims/gh auth git-credential
+	helper = !~/.local/share/mise/shims/gh auth git-credential
 [mergetool]
     prompt = false
 [commit]
