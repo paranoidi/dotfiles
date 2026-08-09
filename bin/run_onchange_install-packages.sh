@@ -69,6 +69,7 @@ UV_TOOLS=(
 INSTALLERS=(
     "apt:install_apt_group"
     "mise:install_mise_tools"
+    "fzf-tmux:install_fzf_tmux"
     "purge-pre-mise:purge_pre_mise_duplicates"
     "uv-tools:install_uv_tools"
     "helix:install_helix_from_source"
@@ -230,6 +231,31 @@ install_mise_tools() {
     fi
     mise trust "${MISE_CONFIG}" >/dev/null 2>&1 || true
     _mise_install
+}
+
+# -----------------------------------------------------------------------------
+# fzf-tmux (companion script, not shipped by mise's binary-only fzf install)
+# -----------------------------------------------------------------------------
+
+# mise's aqua-backed fzf install is just the compiled binary; fzf-tmux is a
+# plain shell script from the fzf git repo (bin/fzf-tmux), normally shipped by
+# distro packages built from source. Fetch it pinned to the mise-installed fzf
+# version so the two stay in sync.
+install_fzf_tmux() {
+    local dest="${HOME}/bin/fzf-tmux"
+    if [[ -x "$dest" ]] && [[ "${INSTALL_FORCE:-0}" != 1 ]]; then
+        echo "✅ fzf-tmux"
+        return 0
+    fi
+    local ver tag
+    ver=$(grep -oP '^fzf\s*=\s*"\K[^"]+' "$MISE_CONFIG" 2>/dev/null)
+    tag="${ver:+v$ver}"
+    tag="${tag:-master}"
+    echo "🌐 Installing fzf-tmux (${tag})..."
+    mkdir -p "${HOME}/bin"
+    curl -fsSL -o "$dest" "https://raw.githubusercontent.com/junegunn/fzf/${tag}/bin/fzf-tmux"
+    chmod +x "$dest"
+    echo "✅ fzf-tmux installed"
 }
 
 # Remove pre-mise copies of tools now managed by mise (same apply, after mise).
