@@ -1,0 +1,3 @@
+#!/bin/bash
+# Nemo sets cwd before spawning; $PWD holds the target directory
+exec "$HOME/apps/WezTerm.AppImage" start --no-auto-connect --cwd "$PWD"
