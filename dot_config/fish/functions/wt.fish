@@ -357,6 +357,18 @@ function __wt_done -a root_dir worktree_dir name
         return 1
     end
 
+    # wt done only ever merges/deletes task/$name. If something else is checked
+    # out in the worktree (e.g. branched manually inside it), operating on
+    # task/$name would silently ignore that work — refuse instead of proceeding.
+    set -l task_branch "task/$name"
+    set -l actual_branch (git -C $wtdir rev-parse --abbrev-ref HEAD 2>/dev/null)
+    if test "$actual_branch" != "$task_branch"
+        echo "🚫 worktree '$name' has '$actual_branch' checked out, not '$task_branch'" >&2
+        echo "   wt done only manages '$task_branch' — it will not merge or delete '$actual_branch'." >&2
+        echo "   Merge/rename '$actual_branch' manually (in $wtdir), then re-run wt done." >&2
+        return 1
+    end
+
     echo "🎉 Finishing task: $name"
 
     # cd to root_dir first so the shell's CWD survives worktree removal
@@ -390,7 +402,6 @@ function __wt_done -a root_dir worktree_dir name
     # 2. Merge from primary repo ($root_dir). The integration branch is often checked out only
     #    there; a task worktree cannot check it out, which used to yield a false "Already up to date".
     echo "🔀 Merging into $target_branch"
-    set -l task_branch "task/$name"
     git -C $root_dir fetch origin $target_branch 2>/dev/null; or echo "  (no remote / fetch skipped)"
     git -C $root_dir checkout $target_branch
     if test $status -ne 0
@@ -421,15 +432,26 @@ function __wt_done -a root_dir worktree_dir name
         echo "  merged $task_branch -> $target_branch (local only — push manually if needed)"
     end
 
-    # 2. Cleanup — remove worktree first so task_branch is no longer checked out, then delete branch ref
+    # 3. Safety gate — refuse to touch the worktree or branch unless task_branch is
+    #    provably merged into target_branch. Last line of defense against deleting
+    #    unmerged work; do not remove or relax this check.
+    if not git -C $root_dir merge-base --is-ancestor $task_branch $target_branch &>/dev/null
+        echo "🚫 $task_branch is NOT fully merged into $target_branch — refusing to remove worktree or branch." >&2
+        echo "   worktree kept: $wtdir" >&2
+        echo "   branch kept:   $task_branch" >&2
+        echo "   Resolve manually (merge/rebase/push), then re-run: wt done $name" >&2
+        return 1
+    end
+
+    # 4. Cleanup — remove worktree first so task_branch is no longer checked out, then delete branch ref
     echo "💀 Removing worktree"
     git -C $root_dir worktree remove $wtdir 2>/dev/null
     or git -C $root_dir worktree remove --force $wtdir 2>/dev/null
     git -C $root_dir worktree prune
     git -C $root_dir branch -d $task_branch 2>/dev/null
-    git -C $root_dir branch -D $task_branch 2>/dev/null
-    if git -C $root_dir rev-parse --verify "$task_branch" &>/dev/null
-        echo "🚫 could not delete local branch $task_branch" >&2
+    if test $status -ne 0
+        echo "🚫 could not delete $task_branch even though it's merged into $target_branch (unexpected — left intact for manual cleanup)" >&2
+        return 1
     end
 
     echo ""
