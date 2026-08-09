@@ -29,7 +29,7 @@ cat > "$AUTOSTART_FILE" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Tilde Key Remap
-Exec=bash -c "sleep 3 && xmodmap $XMODMAP_FILE"
+Exec=bash -c "for i in 1 2 3 4 5 6; do sleep 6; xmodmap $XMODMAP_FILE; done"
 X-GNOME-Autostart-enabled=true
 EOF
 
