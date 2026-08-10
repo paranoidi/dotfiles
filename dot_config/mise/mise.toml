@@ -1,5 +1,9 @@
 # Global mise tools — source of truth (chezmoi-managed).
 # Install/upgrade via run_onchange_install-packages.sh or: mise install
+#
+# Never add paras-commander/pc here — it's actively developed and updated via
+# maintenance_pc.fish's `go install ... GOPROXY=direct`, which a mise-owned
+# install would shadow and break.
 
 min_version = "2025.11.7"
 

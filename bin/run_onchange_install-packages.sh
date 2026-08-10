@@ -334,6 +334,20 @@ purge_pre_mise_duplicates() {
         rm -rf "${HOME}/.local/go"
     fi
 
+    # paras-commander (pc): actively developed, updated via maintenance_pc.fish's
+    # `go install ... GOPROXY=direct` (rebuilds from a local checkout when present).
+    # Never add it to mise.toml — that hook can't see or manage a mise-owned
+    # install. Purge any stray one anyway (e.g. from a manual `mise use -g go:...`
+    # on this machine), so its shim doesn't shadow the go-installed binary.
+    local pc_tools
+    pc_tools=$(mise ls -g 2>/dev/null | awk 'tolower($0) ~ /paras-commander/ {print $1}')
+    if [[ -n "$pc_tools" ]]; then
+        echo "💀 Purging mise-managed pc (paras-commander): ${pc_tools}"
+        while IFS= read -r t; do
+            [[ -n "$t" ]] && mise uninstall -g "$t" 2>&1 | _mise_out_filter
+        done <<<"$pc_tools"
+    fi
+
     echo "✅ pre-mise duplicates purged"
 }
 
