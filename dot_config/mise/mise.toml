@@ -1,9 +1,5 @@
 # Global mise tools — source of truth (chezmoi-managed).
 # Install/upgrade via run_onchange_install-packages.sh or: mise install
-#
-# Never add paras-commander/pc here — it's actively developed and updated via
-# maintenance_pc.fish's `go install ... GOPROXY=direct`, which a mise-owned
-# install would shadow and break.
 
 min_version = "2025.11.7"
 
@@ -34,6 +30,7 @@ starship = "1.26.0"
 taplo = "0.10.0"
 task = "3.52.0"
 television = "0.15.9"
+zoxide = "0.10.0"
 
 # No first-party binstall artifacts (reef-shell is QuickInstall-only). With
 # cargo.binstall disabled below, mise goes straight to cargo install.

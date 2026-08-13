@@ -25,6 +25,7 @@ config.custom_block_glyphs = false
 config.window_padding = { left = 0, right = 0, top = 0, bottom = 0 }
 config.font_size = 13.0
 config.max_fps = 120
+config.warn_about_missing_glyphs = false
 
 config.keys = {
   -- suppress fullscreen toggle so tmux gets M-Enter

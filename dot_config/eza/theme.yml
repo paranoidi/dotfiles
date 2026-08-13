@@ -2,21 +2,21 @@ colourful: true
 
 filekinds:
   normal: {foreground: Default}
-  directory: {foreground: Blue, is_bold: true}
+  directory: {foreground: LightBlue, is_bold: true}
   symlink: {foreground: Cyan}
   pipe: {foreground: Yellow}
-  block_device: {foreground: Yellow, is_bold: true}
-  char_device: {foreground: Yellow, is_bold: true}
-  socket: {foreground: Red, is_bold: true}
+  block_device: {foreground: LightYellow, is_bold: true}
+  char_device: {foreground: LightYellow, is_bold: true}
+  socket: {foreground: LightRed, is_bold: true}
   special: {foreground: Yellow}
-  executable: {foreground: Green, is_bold: true}
-  mount_point: {foreground: Blue, is_bold: true, is_underline: true}
+  executable: {foreground: LightGreen, is_bold: true}
+  mount_point: {foreground: LightBlue, is_bold: true, is_underline: true}
 
 perms:
   user_read: {foreground: Default, is_bold: false}
   user_write: {foreground: Default, is_bold: false}
-  user_execute_file: {foreground: Green, is_bold: true, is_underline: true}
-  user_execute_other: {foreground: Green, is_bold: true}
+  user_execute_file: {foreground: LightGreen, is_bold: true, is_underline: true}
+  user_execute_other: {foreground: LightGreen, is_bold: true}
   group_read: {foreground: Default, is_bold: false}
   group_write: {foreground: Default, is_bold: false}
   group_execute: {foreground: Green}
@@ -28,13 +28,13 @@ perms:
   attribute: {foreground: Default}
 
 size:
-  major: {foreground: Green, is_bold: true}
+  major: {foreground: LightGreen, is_bold: true}
   minor: {foreground: Green}
-  number_byte: {foreground: Green, is_bold: true}
-  number_kilo: {foreground: Green, is_bold: true}
-  number_mega: {foreground: Green, is_bold: true}
-  number_giga: {foreground: Green, is_bold: true}
-  number_huge: {foreground: Green, is_bold: true}
+  number_byte: {foreground: LightGreen, is_bold: true}
+  number_kilo: {foreground: LightGreen, is_bold: true}
+  number_mega: {foreground: LightGreen, is_bold: true}
+  number_giga: {foreground: LightGreen, is_bold: true}
+  number_huge: {foreground: LightGreen, is_bold: true}
   unit_byte: {foreground: Green}
   unit_kilo: {foreground: Green}
   unit_mega: {foreground: Green}
@@ -43,14 +43,14 @@ size:
 
 users:
   user_you: {foreground: White, is_bold: false}
-  user_root: {foreground: Yellow, is_bold: true}
+  user_root: {foreground: LightYellow, is_bold: true}
   user_other: {foreground: Default}
-  group_yours: {foreground: Yellow, is_bold: true}
+  group_yours: {foreground: LightYellow, is_bold: true}
   group_other: {foreground: Default}
   group_root: {foreground: Default}
 
 links:
-  normal: {foreground: Red, is_bold: true}
+  normal: {foreground: LightRed, is_bold: true}
   multi_link_file: {foreground: Red, background: Yellow}
 
 git:
@@ -77,16 +77,16 @@ security_context:
 
 file_type:
   image: {foreground: Purple}
-  video: {foreground: Purple, is_bold: true}
+  video: {foreground: LightPurple, is_bold: true}
   music: {foreground: Cyan}
-  lossless: {foreground: Cyan, is_bold: true}
-  crypto: {foreground: Green, is_bold: true}
+  lossless: {foreground: LightCyan, is_bold: true}
+  crypto: {foreground: LightGreen, is_bold: true}
   document: {foreground: Green}
   compressed: {foreground: Red}
   temp: {foreground: White}
   compiled: {foreground: Yellow}
-  build: {foreground: Yellow, is_bold: true, is_underline: true}
-  source: {foreground: Yellow, is_bold: true}
+  build: {foreground: LightYellow, is_bold: true, is_underline: true}
+  source: {foreground: LightYellow, is_bold: true}
 
 punctuation: {foreground: DarkGray, is_bold: true}
 date: {foreground: Blue}

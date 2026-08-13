@@ -62,7 +62,8 @@ agent_state() {
     case "$cmd" in
         claude)
             # herdr priority: spinner title (1100) > screen blockers (850-980) > idle
-            if [[ "$title" =~ ^[⠀-⣿]\  ]]; then
+            # Spinner glyph: braille (⠀-⣿, old CLI versions) or circleHalves (◐◑◒◓, current)
+            if [[ "$title" =~ ^[⠀-⣿◐◑◒◓]\  ]]; then
                 printf 'working'
             elif [[ "$text" == *'do you want to proceed?'* ]] ||
                  { [[ "$text" == *'esc to cancel'* ]] && [[ "$text" == *'enter to select'* ]]; }; then
@@ -71,9 +72,31 @@ agent_state() {
                 printf 'idle'
             fi ;;
         hermes)
-            if [[ "$text" == *'dangerous command'* || "$text" == *'allow once'* ]]; then
+            # herdr priority: osc title blocked (1100) > osc title working (1050) >
+            # interrupt hint (950) > prompt blockers (900) > classic cancel (500) > osc title idle (100)
+            local ask_re=$'(^|\n)[[:space:]]*ask[[:space:]]+[^[:space:]]'
+            if [[ "$title" =~ ^⚠[^[:space:]]?(\ |$) ]]; then
                 printf 'blocked'
-            elif [[ "$text" == *'msg=interrupt'* || "$text" == *'ctrl+c cancel'* ]]; then
+            elif [[ "$title" =~ ^⏳[^[:space:]]?(\ |$) ]]; then
+                printf 'working'
+            elif [[ "$text" == *'msg=interrupt'* || "$text" == *'ctrl+c to interrupt'* ]]; then
+                printf 'working'
+            elif { [[ "$text" == *'dangerous'* || "$text" == *'approval'* ||
+                      ( "$text" == *'allow once'* && "$text" == *'deny'* ) ]] &&
+                   [[ "$text" == *'enter confirm'* || "$text" == *'enter to confirm'* ||
+                      "$text" == *'↑/↓ to select'* || "$text" == *'show full command'* ]]; } ||
+                 { [[ "$text" == *'hermes needs your'* || "$text" =~ $ask_re || "$text" == *'type your answer'* ]] &&
+                   [[ "$text" == *'enter confirm'* || "$text" == *'enter to confirm'* || "$text" == *'enter send'* ||
+                      "$text" == *'press enter'* || "$text" == *'↑/↓ select'* || "$text" == *'↑/↓ to select'* ||
+                      "$text" == *'other (type'* ]]; } ||
+                 [[ "$text" == *'sudo password'* || "$text" == *'skill setup'* ||
+                    ( "$text" == *'🔑'* && "$text" == *'for '* ) ]] ||
+                 { [[ ( "$text" == *'approve once'* && "$text" == *'cancel'* ) ||
+                      ( "$text" == *'start a new session'* && "$text" == *'keep going'* ) ]] &&
+                   [[ "$text" == *'enter to confirm'* || "$text" == *'enter confirm'* ||
+                      "$text" == *'type 1/2/3'* || "$text" == *'y/n quick'* ]]; }; then
+                printf 'blocked'
+            elif [[ "$text" == *'ctrl+c cancel'* ]]; then
                 printf 'working'
             else
                 printf 'idle'
@@ -135,10 +158,20 @@ if [[ "$1" == --test ]]; then
     t() { local want="$1"; shift; local got; got="$(agent_state "$@")"
           [[ "$got" == "$want" ]] || { echo "FAIL: agent_state $* -> '$got', want '$want'"; exit 1; }; }
     t working claude '⠐ fix parser' ''
+    t working claude '◐ fix parser' ''
+    t idle    claude '✳ fix parser' ''
     t blocked claude '✳ fix parser' $'Bash command\nDo you want to proceed?\n ❯ 1. Yes'
     t blocked claude '✳ fix parser' $'Enter to select · Esc to cancel'
     t idle    claude '✳ fix parser' $'❯ '
-    t blocked hermes '' 'Allow once   Allow for this session   Deny'
+    t blocked hermes '⚠ auth error' ''
+    t working hermes '⏳ thinking' ''
+    t idle    hermes '✓ done' ''
+    t blocked hermes '' $'Dangerous command\nAllow once   Deny\nEnter confirm'
+    t blocked hermes '' $'Hermes needs your input\nPress enter'
+    t blocked hermes '' $'ask what filename?\nEnter send'
+    t blocked hermes '' 'sudo password:'
+    t blocked hermes '' $'Approve once   Cancel\nEnter to confirm'
+    t working hermes '' 'ctrl+c to interrupt'
     t working hermes '' 'esc … ctrl+c cancel'
     t idle    hermes '' 'hermes> '
     t blocked copilot '' 'Enter to select · Esc to cancel'

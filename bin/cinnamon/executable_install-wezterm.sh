@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+no_default=0
+if [[ "${!#:-}" == "--no-default" ]]; then
+  no_default=1
+  set -- "${@:1:$(($#-1))}"
+fi
+
 if [[ $# -ne 1 || "$1" == "-h" || "$1" == "--help" ]]; then
-  echo "usage: $(basename "$0") <path-to-wezterm-appimage>"
+  echo "usage: $(basename "$0") <path-to-wezterm-appimage> [--no-default]"
   echo "  installs a .desktop entry and sets wezterm as the Cinnamon default terminal"
+  echo "  --no-default: skip setting as the Nemo/Cinnamon default terminal"
   exit 1
 fi
 
@@ -35,6 +42,8 @@ exec "$appimage" start --no-auto-connect --cwd "\$PWD"
 WRAPPER
 chmod +x "$wrapper"
 
-gsettings set org.cinnamon.desktop.default-applications.terminal exec "$wrapper"
-gsettings set org.cinnamon.desktop.default-applications.terminal exec-arg ''
-echo "default terminal set to: $wrapper"
+if [[ $no_default -eq 0 ]]; then
+  gsettings set org.cinnamon.desktop.default-applications.terminal exec "$wrapper"
+  gsettings set org.cinnamon.desktop.default-applications.terminal exec-arg ''
+  echo "default terminal set to: $wrapper"
+fi
