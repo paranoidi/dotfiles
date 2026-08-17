@@ -824,3 +824,7 @@ url_api = "https://api.github.com/repos/alexpasmantier/television/releases/asset
 [[tools.uv]]
 version = "0.12.0"
 backend = "asdf:uv"
+
+[[tools.zoxide]]
+version = "0.10.0"
+backend = "aqua:ajeetdsouza/zoxide"

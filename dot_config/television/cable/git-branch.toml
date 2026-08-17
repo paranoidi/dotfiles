@@ -18,7 +18,7 @@ ctrl-r = "actions:rebase"
 
 [actions.checkout]
 description = "Checkout the selected branch"
-command = "git checkout '{0}'"
+command = "sh -c 'b=\"$1\"; if git show-ref --verify --quiet \"refs/heads/$b\"; then git switch \"$b\"; else l=\"${b#*/}\"; if git show-ref --verify --quiet \"refs/heads/$l\"; then git switch \"$l\"; else git switch --track \"$b\"; fi; fi' sh '{0}'"
 mode = "execute"
 
 [actions.delete]

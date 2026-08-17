@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# snapshot-keep — pin btrfs snapshots so the auto-prune never deletes them.
+# Renames selected snapshots with a keep- prefix; the prune helper skips keep-*.
+# Remove pinned snapshots manually with: snapshot-rm --fzf
+set -e
+
+SNAPSHOT_DIR="/home/.snapshots"
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  echo "Usage: $0"
+  echo "  Pick snapshots via fzf (multiselect) to keep forever."
+  echo "  Pinned snapshots are renamed keep-<name> and exempt from the prune."
+  echo "  Remove them later with: snapshot-rm --fzf"
+  exit 0
+fi
+
+selected=$(ls "$SNAPSHOT_DIR" | grep -v '^keep-' | fzf -m --prompt="Pin snapshots to keep> ")
+if [[ -z "$selected" ]]; then
+  echo "No snapshots selected."
+  exit 0
+fi
+
+# Single selection has no trailing newline; multiple are newline separated.
+while IFS= read -r name; do
+  sudo mv "$SNAPSHOT_DIR/$name" "$SNAPSHOT_DIR/keep-$name"
+  echo "Pinned: keep-$name"
+done <<< "$selected"

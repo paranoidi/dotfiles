@@ -18,7 +18,7 @@ Clear terminal and buffer|l|l is standard in shell
 Scroll up|Ctrl-PgUp
 Scroll down|Ctrl-PgDown
 Previous window|Ctrl-a twice
-Send Ctrl-a when nested|a
+Send Ctrl-a when nested|A
 Install tmux plugins|I|I for install
 Uninstall plugins|alt-u|u for uninstall
 Switch panel|
