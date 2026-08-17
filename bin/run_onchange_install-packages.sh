@@ -344,7 +344,10 @@ purge_pre_mise_duplicates() {
     if [[ -n "$pc_tools" ]]; then
         echo "💀 Purging mise-managed pc (paras-commander): ${pc_tools}"
         while IFS= read -r t; do
-            [[ -n "$t" ]] && mise uninstall -g "$t" 2>&1 | _mise_out_filter
+            # `unuse -g` (not `uninstall -g`, which has no -g flag) both drops
+            # the entry from the global config and prunes the install — needed
+            # or `mise install` would just reinstall it on the next run.
+            [[ -n "$t" ]] && mise unuse -g "$t" 2>&1 | _mise_out_filter
         done <<<"$pc_tools"
     fi
 
