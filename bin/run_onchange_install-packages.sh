@@ -336,9 +336,8 @@ purge_pre_mise_duplicates() {
 
     # paras-commander (pc): actively developed, updated via maintenance_pc.fish's
     # `go install ... GOPROXY=direct` (rebuilds from a local checkout when present).
-    # Never add it to mise.toml — that hook can't see or manage a mise-owned
-    # install. Purge any stray one anyway (e.g. from a manual `mise use -g go:...`
-    # on this machine), so its shim doesn't shadow the go-installed binary.
+    # Never add it to mise.toml. Purge any stray mise-registered tool (e.g. from a
+    # manual `mise use -g go:...`) so its shim doesn't shadow the go-installed binary.
     local pc_tools
     pc_tools=$(mise ls -g 2>/dev/null | awk 'tolower($0) ~ /paras-commander/ {print $1}')
     if [[ -n "$pc_tools" ]]; then
@@ -350,6 +349,19 @@ purge_pre_mise_duplicates() {
             [[ -n "$t" ]] && mise unuse -g "$t" 2>&1 | _mise_out_filter
         done <<<"$pc_tools"
     fi
+
+    # `go install` (what maintenance_pc.fish runs) writes to GOBIN, and mise's go
+    # plugin points GOBIN at its own toolchain dir — not GOPATH/bin — so a plain
+    # `go install .../pc` lands inside mise's install tree even though pc is never
+    # a mise-registered tool. `mise ls -g`/`unuse` can't see or remove it; only a
+    # direct file check does.
+    local pc_bin
+    for pc_bin in "${HOME}"/.local/share/mise/installs/go/*/bin/pc; do
+        if [[ -e "$pc_bin" || -L "$pc_bin" ]]; then
+            echo "💀 Removing ${pc_bin}"
+            rm -f "$pc_bin"
+        fi
+    done
 
     echo "✅ pre-mise duplicates purged"
 }
