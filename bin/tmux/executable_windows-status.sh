@@ -136,6 +136,26 @@ agent_state() {
     esac
 }
 
+# Two-tick idle confirmation: a bare working->idle read can be a one-tick
+# flicker (e.g. mid-subagent render gap where no rule matches "working" for
+# an instant) rather than a real finish. herdr hit the same false-done bug
+# and fixed it with a pending-idle confirmation window (src/pane/agent_detection.rs,
+# PendingIdleConfirmation) — this is that idea, adapted to poll-per-tick
+# instead of herdr's sub-second recheck loop.
+# Prints "<new_pending> <fire>"; fire=1 only on the tick that confirms idle.
+idle_debounce() {
+    local prev="$1" pending="$2" state="$3"
+    if [[ "$state" != idle ]]; then
+        printf '0 0'
+    elif [[ "$prev" == working ]]; then
+        printf '1 0'
+    elif [[ "$prev" == idle && "$pending" == 1 ]]; then
+        printf '0 1'
+    else
+        printf '0 0'
+    fi
+}
+
 # Desktop/tmux toast via fish; tmux-only fallback when fish is unavailable.
 agent_toast() {
     local icon="$1"; shift
@@ -183,6 +203,13 @@ if [[ "$1" == --test ]]; then
     t working cursor-agent '' 'Ctrl+C to stop'
     t working cursor-agent '' '⬢ Generating response'
     t idle    cursor-agent '' '> '
+    td() { local want="$1"; shift; local got; got="$(idle_debounce "$@")"
+           [[ "$got" == "$want" ]] || { echo "FAIL: idle_debounce $* -> '$got', want '$want'"; exit 1; }; }
+    td '0 0' working 0 working    # still working: no pending, no fire
+    td '1 0' working 0 idle       # first idle tick after working: arm, don't fire yet
+    td '0 1' idle 1 idle          # second consecutive idle tick: confirmed
+    td '0 0' idle 0 idle          # already confirmed earlier: don't re-fire
+    td '0 0' idle 1 working       # work resumed before confirmation: flicker absorbed
     echo OK
     exit 0
 fi
@@ -329,13 +356,22 @@ if [[ -n "$pane_id" && "$cmd" =~ ^(claude|hermes|pi|copilot|cursor-agent)$ ]]; t
     # "Done while you were away": working→idle edge in a non-current window
     # sets @agent_done; rendering as the current window clears it (= seen).
     # State lives in pane user options, dies with the pane.
-    # ponytail: 5s poll is the debounce — a working→idle flicker across a
-    # tick can false-ring; store two prev states if it ever annoys.
+    # ponytail: idle must be confirmed for 2 polls (idle_debounce) before it
+    # counts as "done" — a single flicker (e.g. mid-subagent render gap)
+    # otherwise false-rings. Raise AGENT_PENDING confirmations further if it
+    # still false-rings on a slower poll interval.
     prev="$(tmux show -pqvt "$pane_id" @agent_prev 2>/dev/null)"
+    pending="$(tmux show -pqvt "$pane_id" @agent_pending_idle 2>/dev/null)"
+    read -r new_pending idle_confirmed <<< "$(idle_debounce "$prev" "$pending" "$state")"
     tmux set -pt "$pane_id" @agent_prev "$state" 2>/dev/null
+    if [[ "$new_pending" == 1 ]]; then
+        tmux set -pt "$pane_id" @agent_pending_idle 1 2>/dev/null
+    else
+        tmux set -pt "$pane_id" -u @agent_pending_idle 2>/dev/null
+    fi
     if [[ "$is_current" == 1 ]]; then
         tmux set -pt "$pane_id" -u @agent_done 2>/dev/null
-    elif [[ "$prev" == working && "$state" == idle ]]; then
+    elif [[ "$idle_confirmed" == 1 ]]; then
         tmux set -pt "$pane_id" @agent_done 1 2>/dev/null
     fi
 
@@ -352,7 +388,7 @@ if [[ -n "$pane_id" && "$cmd" =~ ^(claude|hermes|pi|copilot|cursor-agent)$ ]]; t
         notify_body="tmux window ${win_idx:-?} · ${info:-$path}"
         if [[ "$prev" != blocked && "$state" == blocked ]]; then
             TOAST_FORCE=1 TOAST_DURATION=8000 agent_toast '🔔' "$agent_name needs your input — $notify_body"
-        elif [[ "$is_current" != 1 && "$prev" == working && "$state" == idle ]]; then
+        elif [[ "$is_current" != 1 && "$idle_confirmed" == 1 ]]; then
             TOAST_DURATION=5000 agent_toast '💡' "$agent_name finished — $notify_body"
         fi
     fi
