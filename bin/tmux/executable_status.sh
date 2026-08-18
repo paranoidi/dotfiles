@@ -16,6 +16,7 @@
 THIS_INDEX="$1"
 CMD="$2"
 TITLE="$3"
+[ "$TITLE" = "EMPTYTITLE" ] && TITLE=""  # see .tmux.conf comment: #{q:} vanishes empty args
 PATH_ARG="$4"
 PANE_ID="$5"
 
