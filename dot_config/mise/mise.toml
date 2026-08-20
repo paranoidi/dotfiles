@@ -3,11 +3,6 @@
 
 min_version = "2025.11.7"
 
-[env]
-EDITOR = "hx"
-VISUAL = "hx"
-GIT_EDITOR = "hx"
-
 [tools]
 # Runtimes first so cargo:* can build.
 go = "1.26.5"

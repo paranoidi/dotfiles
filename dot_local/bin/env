@@ -1,9 +1,4 @@
 #!/bin/sh
-# Login-shell env (sourced from ~/.profile).
-export EDITOR=hx
-export VISUAL=hx
-export GIT_EDITOR=hx
-
 # add binaries to PATH if they aren't added yet
 # affix colons on either side of $PATH to simplify matching
 case ":${PATH}:" in
