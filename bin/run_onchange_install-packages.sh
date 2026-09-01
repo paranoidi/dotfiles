@@ -68,9 +68,9 @@ UV_TOOLS=(
 # purge-pre-mise runs after mise so replacements exist before apt/old bins are removed.
 INSTALLERS=(
     "apt:install_apt_group"
+    "purge-pre-mise:purge_pre_mise_duplicates"
     "mise:install_mise_tools"
     "fzf-tmux:install_fzf_tmux"
-    "purge-pre-mise:purge_pre_mise_duplicates"
     "uv-tools:install_uv_tools"
     "helix:install_helix_from_source"
     "fira-font:install_firacode_nerd_font_if_gui"
@@ -266,7 +266,7 @@ install_fzf_tmux() {
 purge_pre_mise_duplicates() {
     local apt_pkgs=(
         ripgrep fd-find bat neovim gh jq git-delta
-        eza fastfetch television
+        eza fastfetch television rustup
     )
     local pkg to_purge=()
     for pkg in "${apt_pkgs[@]}"; do
@@ -630,25 +630,44 @@ install_jetbrains_mono_font_if_gui() {
 change_shell_to_fish() {
     local fish_path
     fish_path=$(command -v fish 2>/dev/null || true)
+
     if [ -z "$fish_path" ]; then
         echo "❌ Fish is not installed, cannot change shell" >&2
         return 0
     fi
+
     if [ "$SHELL" = "$fish_path" ] && [[ "${INSTALL_FORCE:-0}" != 1 ]]; then
         return 0
     fi
+
     local fish_version
     fish_version=$(fish --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1)
+
     if [ -z "$fish_version" ]; then
         echo "❌ Could not determine fish version, skipping shell change" >&2
         return 0
     fi
+
     local required_version=3.7
-    if printf '%s\n%s\n' "$required_version" "$fish_version" | sort -C -V; then
-        echo "🏆 Changing shell to fish (version $fish_version)..."
-        chsh -s "$fish_path"
-    else
-        echo "❌ Fish version $fish_version is less than required ${required_version}, skipping shell change" >&2
+
+    if ! printf '%s\n%s\n' "$required_version" "$fish_version" | sort -C -V; then
+        echo "❌ Fish version $fish_version is less than required $required_version, skipping shell change" >&2
+        return 0
+    fi
+
+    if ! grep -Fxq "$fish_path" /etc/shells; then
+        echo "🏆 Adding $fish_path to /etc/shells..."
+        if ! echo "$fish_path" | sudo tee -a /etc/shells >/dev/null; then
+            echo "❌ Failed to add $fish_path to /etc/shells" >&2
+            return 1
+        fi
+    fi
+
+    echo "🏆 Changing shell to fish (version $fish_version)..."
+
+    if ! chsh -s "$fish_path"; then
+        echo "❌ Failed to change login shell" >&2
+        return 1
     fi
 }
 

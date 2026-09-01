@@ -5,6 +5,8 @@ color-modes = true
 end-of-line-diagnostics = "hint"
 line-number = "relative"
 soft-wrap.enable = true
+# otherwise hx uses tmux clipboard which does not work
+clipboard-provider = "x-clip"
 
 [editor.lsp]
 auto-document-highlight = true
