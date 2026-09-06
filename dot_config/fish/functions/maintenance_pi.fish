@@ -1,4 +1,7 @@
 function maintenance_pi
+    # How often to check for pi updates (edit this number).
+    set -l update_frequency_days 28
+
     argparse f/force -- $argv
     or return
 
@@ -11,6 +14,7 @@ function maintenance_pi
         set -l cache_dir ~/.cache/fish
         set -l timestamp_file $cache_dir/last_pi_run
         set -l current_time (date +%s)
+        set -l update_interval_seconds (math "$update_frequency_days * 24 * 60 * 60")
         set -l should_run false
 
         if not test -d $cache_dir
@@ -23,7 +27,7 @@ function maintenance_pi
             set -l last_run (string trim -- (command cat $timestamp_file))
 
             if test (count $last_run) -eq 1; and string match -qr '^[0-9]+$' -- $last_run
-                if test (math "$current_time - $last_run") -ge 604800
+                if test (math "$current_time - $last_run") -ge $update_interval_seconds
                     set should_run true
                 end
             else
@@ -38,8 +42,8 @@ function maintenance_pi
         end
 
         # Keep JS packages seven days old since supply chains move fast.
-        tsp fish -c "nvm use latest && tmux-progress '📥 pi update' npm install --min-release-age=7 -g @mariozechner/pi-coding-agent" > /dev/null
-        echo $current_time > $timestamp_file
+        tsp fish -c "nvm use latest && tmux-progress '📥 pi update' npm install --min-release-age=7 -g @mariozechner/pi-coding-agent" >/dev/null
+        echo $current_time >$timestamp_file
     else
         echo "🚫 nvm is not installed on this machine"
     end

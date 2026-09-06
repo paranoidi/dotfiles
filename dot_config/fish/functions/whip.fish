@@ -1,7 +1,10 @@
-function whip --description 'Schedule text to a tmux window at hh:mm'
-    set -l usage "Usage: whip hh:mm [text]
+function whip --description 'Schedule text to a tmux window at hh:mm or after a duration'
+    set -l usage "Usage: whip hh:mm|duration [text]
+       whip hh:mm|duration -     send Enter only
        whip ls
-       whip cancel [pid]"
+       whip cancel [pid]
+
+duration: 30min, 1h, 1h30min, 1h30m"
 
     if test (count $argv) -eq 0
         echo $usage
@@ -25,23 +28,32 @@ function whip --description 'Schedule text to a tmux window at hh:mm'
         return 1
     end
 
+    set -l when $argv[1]
     set text resume
     if test (count $argv) -eq 2
-        set text $argv[2]
+        if test "$argv[2]" = -
+            set text ""
+        else
+            set text $argv[2]
+        end
     end
 
-    # Parse target time
-    set target_epoch (date -d $argv[1] +%s 2>/dev/null)
+    set -l now_epoch (date +%s)
+    set target_epoch (__whip_parse_time $when $now_epoch)
     if test -z "$target_epoch"
-        echo "🚫 whip: invalid time '$argv[1]' — use hh:mm (24h)"
+        echo "🚫 whip: invalid time '$when' — use hh:mm (24h) or duration (30min, 1h, 1h30min)"
         return 1
     end
 
-    # Seconds until target; if behind, assume tomorrow
-    set diff (math "$target_epoch - "(date +%s))
+    set -l at_display (date -d "@$target_epoch" +%H:%M 2>/dev/null)
+    test -z "$at_display"; and set at_display $when
+
+    # Seconds until target
+    set diff (math "$target_epoch - $now_epoch")
     if test "$diff" -le 0
         set diff (math "$diff + 86400")
         set target_epoch (math "$target_epoch + 86400")
+        set at_display (date -d "@$target_epoch" +%H:%M 2>/dev/null)
     end
 
     # fzf pick tmux window with live pane preview
@@ -51,7 +63,7 @@ function whip --description 'Schedule text to a tmux window at hh:mm'
     set selection (
         command tmux list-windows -a -F '#S:#{window_id}: #W' 2>/dev/null |
         fzf --height=60% --reverse --border \
-            --header="whip $argv[1] — pick target window" \
+            --header="whip $when — pick target window" \
             --preview="$preview" --preview-window=right:50%
     )
 
@@ -70,15 +82,28 @@ function whip --description 'Schedule text to a tmux window at hh:mm'
     # Agent TUIs (Claude Code / cursor-agent): text+Enter in one send-keys write is often
     # treated as a soft newline (Shift+Enter). Send literal text, then Enter alone, then a
     # second Enter after a beat (queue/"send now" confirm).
-    fish -c "
+    set -l send_body "
         sleep $diff
         and begin
+    "
+    if test -n "$text"
+        set send_body "$send_body
             command tmux send-keys -t $target_id -l -- $esc_text
             sleep 0.2
             command tmux send-keys -t $target_id Enter
             sleep 0.5
             command tmux send-keys -t $target_id Enter
+        "
+    else
+        set send_body "$send_body
+            command tmux send-keys -t $target_id Enter
+        "
+    end
+    set send_body "$send_body
         end
+    "
+
+    fish -c "$send_body
         set -l f $jobfile_esc
         if test -f \$f
             grep -v \"^\$fish_pid	\" \$f > \$f.tmp 2>/dev/null
@@ -88,8 +113,58 @@ function whip --description 'Schedule text to a tmux window at hh:mm'
     set -l pid $last_pid
     disown
 
-    printf '%s\t%s\t%s\t%s\t%s\n' $pid $argv[1] $target_id $target_epoch $text >>$jobfile
-    echo "🏆 '$text' → $target_id @ $argv[1] (in "(math -s0 "$diff / 60")"m, pid $pid)"
+    set -l text_label $text
+    test -z "$text_label"; and set text_label '(enter)'
+
+    printf '%s\t%s\t%s\t%s\t%s\n' $pid $at_display $target_id $target_epoch $text >>$jobfile
+    set -l when_note ""
+    if test "$when" != "$at_display"
+        set when_note " ($when)"
+    end
+    echo "🏆 $text_label → $target_id @ $at_display$when_note (in "(math -s0 "$diff / 60")"m, pid $pid)"
+end
+
+function __whip_parse_time -a when -a now_epoch
+    # Absolute hh:mm (24h); roll to tomorrow if already past
+    if string match -qr '^\d{1,2}:\d{2}$' -- $when
+        set -l target_epoch (date -d $when +%s 2>/dev/null)
+        if test -n "$target_epoch"
+            if test (math "$target_epoch - $now_epoch") -le 0
+                set target_epoch (math "$target_epoch + 86400")
+            end
+            echo $target_epoch
+            return 0
+        end
+        return 1
+    end
+
+    set -l when_lc (string lower -- $when)
+    set -l seconds 0
+    set -l matched false
+
+    set -l parts (string match -r -i '^(\d+)h(\d+)(?:min|m)?$' -- $when_lc)
+    if test (count $parts) -ge 3
+        set seconds (math "$parts[2] * 3600 + $parts[3] * 60")
+        set matched true
+    else
+        set parts (string match -r -i '^(\d+)h$' -- $when_lc)
+        if test (count $parts) -ge 2
+            set seconds (math "$parts[2] * 3600")
+            set matched true
+        else
+            set parts (string match -r -i '^(\d+)(?:min|m)$' -- $when_lc)
+            if test (count $parts) -ge 2
+                set seconds (math "$parts[2] * 60")
+                set matched true
+            end
+        end
+    end
+
+    if test "$matched" = false; or test "$seconds" -le 0
+        return 1
+    end
+
+    echo (math "$now_epoch + $seconds")
 end
 
 function __whip_jobfile

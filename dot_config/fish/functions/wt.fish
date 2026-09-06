@@ -31,7 +31,7 @@ function wt --description "🌳 Git work-tree task manager"
     # Shorthand: wt <name> [base-branch] → start
     if begin
             test -n "$cmd"
-            and not contains -- $cmd create c list ls l status s done d kill k open reattach o help
+            and not contains -- $cmd create c list ls l status s report r done d kill k open reattach o help
         end
         __wt_create $root_dir $worktree_dir $cmd $argv
         return
@@ -44,6 +44,8 @@ function wt --description "🌳 Git work-tree task manager"
             __wt_list $root_dir
         case status s
             __wt_status $root_dir $worktree_dir
+        case report r
+            __wt_report $root_dir
         case done d
             set -l tn $argv[1]
             if test -n "$tn"
@@ -80,6 +82,7 @@ function wt --description "🌳 Git work-tree task manager"
             echo -e "  \e[1mc\e[0mreate <name> [branch]  Create worktree from branch (default: current branch)"
             echo -e "  \e[1ml\e[0ms                      List git worktrees with last commit date"
             echo -e "  \e[1ms\e[0mtatus                  Branch, dirty files, and sync vs origin for each task worktree"
+            echo -e "  \e[1mre\e[0mport                 Show whether each worktree's commits are merged into current branch"
             echo -e "  \e[1md\e[0mone [name]             Merge into main and remove task worktree; no name outside worktree → fzf"
             echo -e "  \e[1mk\e[0mill [name]             Abandon worktree(s); no name + fzf → multi-select interactively"
             echo -e "  \e[1mo\e[0mpen [name]             cd into existing task worktree; no name outside worktree → tv/fzf"
@@ -332,6 +335,158 @@ function __wt_status -a root_dir worktree_dir
     end
 end
 
+# ── wt report ─────────────────────────────────────────────────────────
+function __wt_report -a root_dir
+    set -l current_ref (git rev-parse HEAD 2>/dev/null)
+    if test -z "$current_ref"
+        echo "🚫 could not determine current branch" >&2
+        return 1
+    end
+
+    set -l current_branch (git rev-parse --abbrev-ref HEAD 2>/dev/null)
+    if test "$current_branch" = HEAD
+        set current_branch (string sub -l 8 $current_ref)" (detached)"
+    end
+
+    set -l current_toplevel (git rev-parse --show-toplevel 2>/dev/null)
+
+    echo "📋 Merge report — each worktree vs current branch: $current_branch"
+
+    set -l wt_path
+    set -l wt_head
+    set -l wt_branch_ref
+    set -l wt_bare 0
+
+    set -l paths
+    set -l branches
+    set -l merge_statuses
+    set -l dirty_notes
+    set -l path_w 0
+    set -l branch_w 0
+
+    for line in (git -C $root_dir worktree list --porcelain)
+        if test -z "$line"
+            set -l path
+            set -l branch
+            set -l merge_status
+            set -l dirty_note
+            __wt_report_collect $root_dir $current_ref $current_branch $current_toplevel \
+                $wt_path $wt_head $wt_branch_ref $wt_bare | read -d \t -l path branch merge_status dirty_note
+            set wt_path
+            set wt_head
+            set wt_branch_ref
+            set wt_bare 0
+            if test -n "$path"
+                set paths $paths $path
+                set branches $branches $branch
+                set merge_statuses $merge_statuses $merge_status
+                set dirty_notes $dirty_notes $dirty_note
+                set -l plen (string length -- $path)
+                set -l blen (string length -- $branch)
+                test $plen -gt $path_w; and set path_w $plen
+                test $blen -gt $branch_w; and set branch_w $blen
+            end
+            continue
+        end
+
+        set -l key (string split -f 1 ' ' -- $line)
+        switch $key
+            case worktree
+                set wt_path (string replace -r '^worktree ' '' -- $line)
+            case HEAD
+                set wt_head (string replace -r '^HEAD ' '' -- $line)
+            case branch
+                set wt_branch_ref (string replace -r '^branch ' '' -- $line)
+            case bare
+                set wt_bare 1
+        end
+    end
+
+    # Porcelain may omit a trailing blank line after the last record
+    if test -n "$wt_path"
+        set -l path
+        set -l branch
+        set -l merge_status
+        set -l dirty_note
+        __wt_report_collect $root_dir $current_ref $current_branch $current_toplevel \
+            $wt_path $wt_head $wt_branch_ref $wt_bare | read -d \t -l path branch merge_status dirty_note
+        if test -n "$path"
+            set paths $paths $path
+            set branches $branches $branch
+            set merge_statuses $merge_statuses $merge_status
+            set dirty_notes $dirty_notes $dirty_note
+            set -l plen (string length -- $path)
+            set -l blen (string length -- $branch)
+            test $plen -gt $path_w; and set path_w $plen
+            test $blen -gt $branch_w; and set branch_w $blen
+        end
+    end
+
+    if test (count $paths) -eq 0
+        echo "  (no worktrees)"
+        return
+    end
+
+    for i in (seq (count $paths))
+        printf '%-*s  %-*s  %s%s\n' $path_w $paths[$i] $branch_w $branches[$i] $merge_statuses[$i] $dirty_notes[$i]
+    end
+end
+
+# Prints: <path>\t<branch>\t<merge-status>\t<dirty-suffix>
+function __wt_report_collect -a root_dir current_ref current_branch current_toplevel wt_path wt_head wt_branch_ref wt_bare
+    test -n "$wt_path"; or return
+    test "$wt_bare" = 1; and return
+
+    set -l display $wt_path
+    if string match -q -- "$root_dir/*" $wt_path
+        set display (string replace -- "$root_dir/" '' $wt_path)
+    end
+
+    set -l branch "?"
+    if test -n "$wt_branch_ref"
+        set branch (string replace 'refs/heads/' '' $wt_branch_ref)
+    else if test -n "$wt_head"
+        set branch (string sub -l 8 $wt_head)" (detached)"
+    end
+
+    set -l wt_toplevel (git -C $wt_path rev-parse --show-toplevel 2>/dev/null)
+    set -l is_current 0
+    if test "$wt_toplevel" = "$current_toplevel"
+        set is_current 1
+    end
+
+    set -l dirty (__wt_dirty_lines $wt_path | wc -l | string trim)
+    set -l dirty_note ''
+
+    set -l merge_status
+    if test $is_current -eq 1
+        set merge_status "(current)"
+        if test "$dirty" != "0"
+            set dirty_note "  🚨 $dirty uncommitted"
+        end
+    else
+        set -l unmerged (git -C $root_dir rev-list --count "$current_ref..$wt_head" 2>/dev/null; or echo "?")
+        if test "$unmerged" = "?"
+            set merge_status "? could not compare"
+            if test "$dirty" != "0"
+                set dirty_note "  🚨 $dirty uncommitted"
+            end
+        else if test "$unmerged" = "0"
+            if test "$dirty" = "0"
+                set merge_status "✅ merged"
+            else
+                set merge_status "🚨 $dirty uncommitted"
+            end
+        else if test "$dirty" = "0"
+            set merge_status "❌ $unmerged not merged"
+        else
+            set merge_status "❌ $unmerged not merged, $dirty uncommitted"
+        end
+    end
+
+    printf '%s\t%s\t%s\t%s\n' $display $branch $merge_status $dirty_note
+end
+
 # Porcelain status lines excluding wt-internal metadata (.wt-base must not be committed).
 function __wt_dirty_lines -a wtdir
     git -C $wtdir status --porcelain 2>/dev/null | string match -vr '(^|[[:space:]])\.wt-base$'
@@ -366,6 +521,16 @@ function __wt_done -a root_dir worktree_dir name
         echo "🚫 worktree '$name' has '$actual_branch' checked out, not '$task_branch'" >&2
         echo "   wt done only manages '$task_branch' — it will not merge or delete '$actual_branch'." >&2
         echo "   Merge/rename '$actual_branch' manually (in $wtdir), then re-run wt done." >&2
+        return 1
+    end
+
+    # Refuse immediately if the main checkout has uncommitted changes — merging
+    # into it would otherwise fail mid-way (or silently autostash) and leave
+    # root_dir in a half-merged state.
+    set -l root_dirty (git -C $root_dir status --porcelain -uno 2>/dev/null)
+    if test -n "$root_dirty"
+        echo "🚫 $root_dir has uncommitted changes — commit or stash before running wt done:" >&2
+        printf '%s\n' $root_dirty >&2
         return 1
     end
 

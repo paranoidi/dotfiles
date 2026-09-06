@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PREF_FILE="/etc/apt/preferences.d/nognome.pref"
+
+echo "💾 Absoluttely no 🧙🏻‍♂️ packages: $PREF_FILE"
+
+sudo tee "$PREF_FILE" > /dev/null <<'EOF'
+# To prevent repository packages from triggering the installation of Gnome,
+# this file forbids gnome from being installed by APT.
+# For more information: https://linuxmint-user-guide.readthedocs.io/en/latest/snap.html
+
+Package: gnome
+Pin: release a=*
+Pin-Priority: -10
+
+Package: gnome-core
+Pin: release a=*
+Pin-Priority: -10
+EOF
+
+echo "✅ Done. APT will refuse to install gnome and gnome-core."

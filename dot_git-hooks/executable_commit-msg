@@ -1,3 +1,4 @@
 #!/bin/sh
 # Remove any "Co-Authored-By:" trailer lines from the commit message
 sed -i '/^Co-Authored-By:/Id' "$1"
+sed -i '/^Claude-Session:/Id' "$1"
