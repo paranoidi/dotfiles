@@ -54,6 +54,20 @@ command_icon() {
     esac
 }
 
+# Claude screen-text working fallbacks for when the OSC spinner title is
+# unavailable/stale — ported from herdr's live_turn_working /
+# background_shell_working / background_agents_working rules
+# (src/detect/manifests/claude.toml, commit ffc4e263).
+claude_screen_working() {
+    local text="$1" line
+    while IFS= read -r line; do
+        [[ "$line" =~ ^[[:space:]]*[⏸⏵].*(esc[[:space:]]to[[:space:]]interrupt([[:space:]]|·|$)|·[[:space:]]+[1-9][0-9]*[[:space:]]+shells?[[:space:]]+(·|$)) ]] && return 0
+        [[ "$line" =~ ^[[:space:]]*[*·✢✶✻✽][[:space:]]+[^[:space:]].*…([[:space:]]+\([0-9]+[smh]([[:space:]]|·)|[[:space:]]*$) ]] && return 0
+        [[ "$line" =~ ^[[:space:]]*[*·✢✶✻✽][[:space:]]+waiting[[:space:]]for[[:space:]][1-9][0-9]*[[:space:]]background[[:space:]]agents?[[:space:]]to[[:space:]]finish[[:space:]]*$ ]] && return 0
+    done <<< "$text"
+    return 1
+}
+
 # Agent state from (title, bottom-of-screen text). Rules ported from
 # herdr's src/detect/manifests/{claude,hermes,github-copilot,pi}.toml.
 # Prints: working | blocked | idle
@@ -61,9 +75,12 @@ agent_state() {
     local cmd="$1" title="$2" text="${3,,}"    # lowercase text, herdr matches case-insensitively
     case "$cmd" in
         claude)
-            # herdr priority: spinner title (1100) > screen blockers (850-980) > idle
+            # herdr priority: spinner title (1100) > screen working fallbacks
+            # (970/965) > screen blockers (850-980) > idle
             # Spinner glyph: braille (⠀-⣿, old CLI versions) or circleHalves (◐◑◒◓, current)
             if [[ "$title" =~ ^[⠀-⣿◐◑◒◓]\  ]]; then
+                printf 'working'
+            elif claude_screen_working "$text"; then
                 printf 'working'
             elif [[ "$text" == *'do you want to proceed?'* ]] ||
                  { [[ "$text" == *'esc to cancel'* ]] && [[ "$text" == *'enter to select'* ]]; }; then
@@ -183,6 +200,12 @@ if [[ "$1" == --test ]]; then
     t blocked claude '✳ fix parser' $'Bash command\nDo you want to proceed?\n ❯ 1. Yes'
     t blocked claude '✳ fix parser' $'Enter to select · Esc to cancel'
     t idle    claude '✳ fix parser' $'❯ '
+    t working claude '' '⏵ esc to interrupt'
+    t working claude '' '* Fetching data… (12s · esc to interrupt)'
+    t working claude '' '✻ Thinking…'
+    t working claude '' '⏸ Running · 2 shells · esc to interrupt'
+    t working claude '' '* Waiting for 3 background agents to finish'
+    t idle    claude '' '* just some text'
     t blocked hermes '⚠ auth error' ''
     t working hermes '⏳ thinking' ''
     t idle    hermes '✓ done' ''
