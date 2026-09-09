@@ -19,6 +19,8 @@ Scroll up|Ctrl-PgUp
 Scroll down|Ctrl-PgDown
 Previous window|Ctrl-a twice
 Send Ctrl-a when nested|A
+Toggle outer tmux off|F12 (no prefix)|for nested/ssh tmux
+Select window 1-10|Alt-1 .. Alt-0 (no prefix)
 Install tmux plugins|I|I for install
 Uninstall plugins|alt-u|u for uninstall
 Switch panel|
