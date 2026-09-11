@@ -16,7 +16,11 @@ function maintenance_pc
             set -a install_flags -a
         end
 
-        if not env GOPROXY=direct go install $install_flags github.com/paranoidi/paras-commander/cmd/pc@main
+        # Pin GOBIN to GOPATH/bin: mise sets GOBIN to its own toolchain dir for
+        # shimming, which is shadowed on PATH by a stale ~/go/bin/pc, making
+        # updates land somewhere PATH never resolves to.
+        set -l gopath_bin (go env GOPATH)/bin
+        if not env GOPROXY=direct GOBIN=$gopath_bin go install $install_flags github.com/paranoidi/paras-commander/cmd/pc@main
             echo "🚫 maintenance_pc: go install failed" >&2
             tmux-progress clear
             return 1
