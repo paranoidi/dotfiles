@@ -56,16 +56,50 @@ command_icon() {
 
 # Claude screen-text working fallbacks for when the OSC spinner title is
 # unavailable/stale — ported from herdr's live_turn_working /
-# background_shell_working / background_agents_working rules
-# (src/detect/manifests/claude.toml, commit ffc4e263).
+# background_agents_working rules (src/detect/manifests/claude.toml,
+# commit a05c4038). herdr dropped the old "N shells" working guess
+# (987b070f, false positive: background shells != Claude working) and
+# added the ✳ (U+2733) spinner glyph to the activity-line char class
+# (a05c4038) — both ported here.
 claude_screen_working() {
     local text="$1" line
     while IFS= read -r line; do
-        [[ "$line" =~ ^[[:space:]]*[⏸⏵].*(esc[[:space:]]to[[:space:]]interrupt([[:space:]]|·|$)|·[[:space:]]+[1-9][0-9]*[[:space:]]+shells?[[:space:]]+(·|$)) ]] && return 0
-        [[ "$line" =~ ^[[:space:]]*[*·✢✶✻✽][[:space:]]+[^[:space:]].*…([[:space:]]+\([0-9]+[smh]([[:space:]]|·)|[[:space:]]*$) ]] && return 0
+        [[ "$line" =~ ^[[:space:]]*[⏸⏵].*esc[[:space:]]to[[:space:]]interrupt([[:space:]]|·|$) ]] && return 0
+        [[ "$line" =~ ^[[:space:]]*[*·✢✳✶✻✽][[:space:]]+[^[:space:]].*…([[:space:]]+\([0-9]+[smh]([[:space:]]|·)|[[:space:]]*$) ]] && return 0
         [[ "$line" =~ ^[[:space:]]*[*·✢✶✻✽][[:space:]]+waiting[[:space:]]for[[:space:]][1-9][0-9]*[[:space:]]background[[:space:]]agents?[[:space:]]to[[:space:]]finish[[:space:]]*$ ]] && return 0
     done <<< "$text"
     return 1
+}
+
+# herdr's background_mcp_task_working (src/detect/manifests/claude.toml,
+# f72a5ef9): an activity line ending "· N MCP task(s) still running" also
+# counts as working. herdr excludes this when a permission/blocked prompt
+# is also on screen so that state wins instead; same exclusions here.
+# ponytail: single-line match only (herdr's regex also spans up to 4
+# wrapped continuation lines) — extend if a real wrapped case misfires.
+claude_mcp_task_working() {
+    local text="$1" line
+    case "$text" in
+        *'do you want to proceed?'*|*'esc to cancel'*|*'waiting for permission'*| \
+        *'do you want to allow this connection?'*|*'tab to amend'*|*'ctrl+e to explain'*)
+            return 1 ;;
+    esac
+    while IFS= read -r line; do
+        [[ "$line" =~ ^[*·✢✶✻✽][[:space:]]+[^[:space:]].*·[[:space:]]+[1-9][0-9]*[[:space:]]+mcp[[:space:]]+tasks?[[:space:]]+still[[:space:]]+running[[:space:]]*$ ]] && return 0
+    done <<< "$text"
+    return 1
+}
+
+# herdr's mcp_elicitation_prompt (src/detect/manifests/claude.toml,
+# f807b697): MCP elicitation dialogs show Accept/Decline with an
+# "esc to cancel" footer but no "enter to select" hint, so the generic
+# blocked check below misses them.
+claude_mcp_elicitation_blocked() {
+    local text="$1"
+    [[ "$text" == *'esc to cancel'* ]] || return 1
+    [[ "$text" =~ mcp\ server\ .+\ requests\ your\ input ]] || return 1
+    [[ "$text" == *'accept'* || "$text" == *'decline'* ]] || return 1
+    return 0
 }
 
 # Agent state from (title, bottom-of-screen text). Rules ported from
@@ -82,6 +116,10 @@ agent_state() {
                 printf 'working'
             elif claude_screen_working "$text"; then
                 printf 'working'
+            elif claude_mcp_task_working "$text"; then
+                printf 'working'
+            elif claude_mcp_elicitation_blocked "$text"; then
+                printf 'blocked'
             elif [[ "$text" == *'do you want to proceed?'* ]] ||
                  { [[ "$text" == *'esc to cancel'* ]] && [[ "$text" == *'enter to select'* ]]; }; then
                 printf 'blocked'
@@ -204,7 +242,11 @@ if [[ "$1" == --test ]]; then
     t working claude '' '* Fetching data… (12s · esc to interrupt)'
     t working claude '' '✻ Thinking…'
     t working claude '' '⏸ Running · 2 shells · esc to interrupt'
+    t idle    claude '' '⏸ Running · 2 shells ·'
+    t working claude '' '✳ Fetching data… (12s · esc to interrupt)'
     t working claude '' '* Waiting for 3 background agents to finish'
+    t working claude '' '* Running research · 2 MCP tasks still running'
+    t blocked claude '' $'MCP server "figma" requests your input\n❯ Accept\n  Decline\nEsc to cancel'
     t idle    claude '' '* just some text'
     t blocked hermes '⚠ auth error' ''
     t working hermes '⏳ thinking' ''
