@@ -30,6 +30,8 @@ config.warn_about_missing_glyphs = false
 config.keys = {
   -- suppress fullscreen toggle so tmux gets M-Enter
   { key = 'Return', mods = 'ALT', action = act.DisableDefaultAssignment },
+  -- Ctrl+Backspace deletes previous word: send Ctrl-W so legacy apps (fish, vim) get it too
+  { key = 'Backspace', mods = 'CTRL', action = act.SendKey { key = 'w', mods = 'CTRL' } },
 }
 
 config.mouse_bindings = {
