@@ -524,16 +524,6 @@ function __wt_done -a root_dir worktree_dir name
         return 1
     end
 
-    # Refuse immediately if the main checkout has uncommitted changes — merging
-    # into it would otherwise fail mid-way (or silently autostash) and leave
-    # root_dir in a half-merged state.
-    set -l root_dirty (git -C $root_dir status --porcelain -uno 2>/dev/null)
-    if test -n "$root_dirty"
-        echo "🚫 $root_dir has uncommitted changes — commit or stash before running wt done:" >&2
-        printf '%s\n' $root_dirty >&2
-        return 1
-    end
-
     echo "🎉 Finishing task: $name"
 
     # cd to root_dir first so the shell's CWD survives worktree removal
@@ -564,6 +554,28 @@ function __wt_done -a root_dir worktree_dir name
         return 1
     end
 
+    # Refuse if the main checkout's uncommitted changes overlap files this merge
+    # touches — git would fail mid-way and leave root_dir half-merged. Unrelated
+    # WIP in root_dir is the normal reason to use worktrees, so it's allowed.
+    set -l root_dirty (git -C $root_dir diff --name-only HEAD 2>/dev/null)
+    set -l merge_files (git -C $root_dir diff --name-only $target_branch...$task_branch 2>/dev/null)
+    set -l clash
+    for f in $root_dirty
+        contains -- $f $merge_files; and set -a clash $f
+    end
+    if test -n "$clash"
+        echo "🚫 $root_dir has uncommitted changes to files this merge touches — commit or stash them before running wt done:" >&2
+        printf '   %s\n' $clash >&2
+        return 1
+    end
+    if test -n "$root_dirty"
+        echo "⚠️  destination $root_dir has uncommitted changes (not touched by this merge):"
+        printf '   %s\n' $root_dirty
+        read -l -P 'continue? [y/N] ' answer
+        or return 1
+        string match -qi y -- "$answer"; or return 1
+    end
+
     # 2. Merge from primary repo ($root_dir). The integration branch is often checked out only
     #    there; a task worktree cannot check it out, which used to yield a false "Already up to date".
     echo "🔀 Merging into $target_branch"
@@ -585,7 +597,10 @@ function __wt_done -a root_dir worktree_dir name
     if git -C $root_dir merge-base --is-ancestor $task_branch $target_branch &>/dev/null
         echo "  $task_branch already merged into $target_branch — skipping to cleanup"
     else
-        git -C $root_dir pull origin $target_branch 2>/dev/null; or echo "  (no remote / pull skipped)"
+        # Fast-forward only. `git pull` honours pull.rebase=true, which rewrites a
+        # merge-heavy local integration branch into new SHAs and then replays
+        # every worktree's old commits as conflicts on the next run.
+        git -C $root_dir merge --ff-only origin/$target_branch 2>/dev/null; or echo "  (no remote or $target_branch ahead of origin — ff skipped)"
         git -C $root_dir merge $task_branch --no-edit --no-verify
         if test $status -ne 0
             echo "🚫 conflicts merging $task_branch into $target_branch. Finish in $root_dir:" >&2
