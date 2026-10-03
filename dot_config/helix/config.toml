@@ -53,6 +53,9 @@ C-p = [
   ':redraw',
 ]
 
+[keys.normal.space]
+G = ":pipe compact-commit"
+
 [keys.insert]
 S-tab = "move_parent_node_start"
 

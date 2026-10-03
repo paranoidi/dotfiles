@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Compact a git commit message: stdin -> claude -> stdout. For helix `:pipe compact-commit`.
+# Helix runs commands via sh so this can not be under fish
+set -euo pipefail
+
+PROMPT='Rewrite the git commit message on stdin to be more compact.
+Rules:
+- Subject line: imperative mood, max 72 chars, keep any existing prefix (e.g. "feat:", "fix(scope):", ticket IDs).
+- Body: only if it adds information the subject lacks; short bullets, wrap at 72 chars.
+- Keep the why and any breaking changes; drop restated diff details, filler, and marketing tone.
+- Keep trailers (Co-Authored-By:, Signed-off-by:, Fixes #) verbatim at the end.
+- Do not invent anything.
+Output only the commit message: no preamble, no code fences.'
+
+input=$(cat)
+# ponytail: on failure, give back the original text so helix doesn't replace the selection with nothing
+if ! out=$(printf '%s' "$input" | "$HOME/.local/bin/claude" -p --model sonnet "$PROMPT" 2>/dev/null) || [ -z "$out" ]; then
+    printf '%s' "$input"; exit 1
+fi
+printf '%s\n' "$out"

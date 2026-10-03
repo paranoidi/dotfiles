@@ -6,7 +6,6 @@ function fish_user_key_bindings
         fzf_configure_bindings --directory= --git_log= --git_status= --history= --processes= --variables=
 
         bind \cT fzf_insert_file
-        bind \ec fzf_cd
 
         bind \cr _fzf_search_history
         bind -M insert \cr _fzf_search_history
