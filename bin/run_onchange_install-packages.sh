@@ -9,7 +9,7 @@ set -euo pipefail
 _no_tmux=0
 for _arg in "$@"; do
     case "$_arg" in
-        -l|--list|-h|--help) _no_tmux=1 ;;
+        -l|--list|-h|--help|--no-tmux) _no_tmux=1 ;;
     esac
 done
 if [[ "$_no_tmux" == 0 ]] && [[ -z "${TMUX:-}" ]] && command -v tmux >/dev/null 2>&1; then
@@ -68,8 +68,8 @@ UV_TOOLS=(
 # purge-pre-mise runs after mise so replacements exist before apt/old bins are removed.
 INSTALLERS=(
     "apt:install_apt_group"
-    "purge-pre-mise:purge_pre_mise_duplicates"
     "mise:install_mise_tools"
+    "purge-pre-mise:purge_pre_mise_duplicates"
     "age-key:check_age_key"
     "fzf-tmux:install_fzf_tmux"
     "uv-tools:install_uv_tools"
@@ -697,13 +697,14 @@ _list_things() {
 }
 
 _usage() {
-    echo "Usage: ${0##*/} [--force [name...]] [--update] [--list] [--help]"
+    echo "Usage: ${0##*/} [--force [name...]] [--update] [--no-tmux] [--list] [--help]"
     echo ""
     echo "  -f, --force [name...]  Re-run installers. With names, force only those things"
     echo "                         (e.g. --force helix fzf cargo:reef-shell). Non-installer"
     echo "                         names are passed to mise install as-is. Bare --force"
     echo "                         re-runs everything."
     echo "  --update               Re-run non-apt installers only (for periodic updates)"
+    echo "  --no-tmux              Run in this terminal, don't relaunch in tmux"
     echo "  -l, --list             List the installable thing names and exit"
 }
 
@@ -720,6 +721,9 @@ main() {
                     FORCE_TARGETS+=("$1")
                     shift
                 done
+                ;;
+            --no-tmux)
+                shift
                 ;;
             --update)
                 UPDATE_ONLY=1
