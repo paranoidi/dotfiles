@@ -1,0 +1,42 @@
+#!/bin/bash
+# Play key: toggle any MPRIS player, or start YouTube Music if none.
+# `install` binds XF86AudioPlay to this script, `uninstall` restores Cinnamon's default.
+set -euo pipefail
+
+id=custom24
+base=/org/cinnamon/desktop/keybindings/custom-keybindings/$id
+list=$(gsettings get org.cinnamon.desktop.keybindings custom-list)
+
+case "${1:-}" in
+install)
+    gsettings set org.cinnamon.desktop.keybindings.media-keys play "[]"
+    dconf write "$base/name" "'Play/pause or launch YouTube Music'"
+    dconf write "$base/command" "'$(realpath "$0")'"
+    dconf write "$base/binding" "['XF86AudioPlay']"
+    [[ $list == *"'$id'"* ]] ||
+        gsettings set org.cinnamon.desktop.keybindings custom-list "${list%]}, '$id']"
+    ;;
+uninstall)
+    gsettings reset org.cinnamon.desktop.keybindings.media-keys play
+    dconf reset -f "$base/"
+    list=${list//", '$id'"/}
+    gsettings set org.cinnamon.desktop.keybindings custom-list "${list//"'$id'"/}"
+    ;;
+"")
+    if [[ -n "$(playerctl -l 2>/dev/null)" ]]; then
+        exec playerctl play-pause
+    fi
+    notify-send -t 3000 -i "$HOME/projects/pear-desktop/assets/icon.png" "Starting YouTube Music…" || true
+    exec "$HOME/bin/yt-music"
+    ;;
+-h | --help)
+    echo "usage: ${0##*/} [install|uninstall]"
+    echo "  (none)     play/pause any MPRIS player, or launch YouTube Music if none"
+    echo "  install    bind the Play/Pause key to this script"
+    echo "  uninstall  restore Cinnamon's default Play/Pause handling"
+    ;;
+*)
+    "$0" -h >&2
+    exit 1
+    ;;
+esac
