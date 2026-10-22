@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""Count lines of code per language. Usage: loc [dir]  (default: .)
+
+Inside a git repo uses `git ls-files` (respects .gitignore); otherwise walks
+the tree skipping common vendor/build dirs.
+"""
+import os
+import subprocess
+import sys
+from collections import defaultdict
+
+# ext -> (language, line-comment prefix)
+LANGS = {
+    ".py": ("Python", "#"), ".pyi": ("Python", "#"),
+    ".js": ("JavaScript", "//"), ".mjs": ("JavaScript", "//"), ".cjs": ("JavaScript", "//"),
+    ".jsx": ("JSX", "//"), ".ts": ("TypeScript", "//"), ".tsx": ("TSX", "//"),
+    ".c": ("C", "//"), ".h": ("C/C++ Header", "//"),
+    ".cc": ("C++", "//"), ".cpp": ("C++", "//"), ".cxx": ("C++", "//"),
+    ".hpp": ("C/C++ Header", "//"), ".hh": ("C/C++ Header", "//"),
+    ".cs": ("C#", "//"), ".java": ("Java", "//"), ".kt": ("Kotlin", "//"), ".kts": ("Kotlin", "//"),
+    ".scala": ("Scala", "//"), ".groovy": ("Groovy", "//"), ".gradle": ("Gradle", "//"),
+    ".go": ("Go", "//"), ".rs": ("Rust", "//"), ".swift": ("Swift", "//"),
+    ".m": ("Objective-C", "//"), ".mm": ("Objective-C++", "//"),
+    ".dart": ("Dart", "//"), ".zig": ("Zig", "//"), ".php": ("PHP", "//"),
+    ".rb": ("Ruby", "#"), ".pl": ("Perl", "#"), ".pm": ("Perl", "#"),
+    ".sh": ("Shell", "#"), ".bash": ("Shell", "#"), ".zsh": ("Shell", "#"), ".fish": ("Fish", "#"),
+    ".ps1": ("PowerShell", "#"), ".r": ("R", "#"), ".jl": ("Julia", "#"),
+    ".ex": ("Elixir", "#"), ".exs": ("Elixir", "#"), ".erl": ("Erlang", "%"),
+    ".hs": ("Haskell", "--"), ".elm": ("Elm", "--"), ".lua": ("Lua", "--"), ".sql": ("SQL", "--"),
+    ".ml": ("OCaml", None), ".fs": ("F#", "//"), ".clj": ("Clojure", ";"), ".lisp": ("Lisp", ";"),
+    ".el": ("Emacs Lisp", ";"), ".vim": ("Vim script", '"'), ".nim": ("Nim", "#"),
+    ".html": ("HTML", None), ".htm": ("HTML", None), ".vue": ("Vue", None), ".svelte": ("Svelte", None),
+    ".css": ("CSS", None), ".scss": ("SCSS", "//"), ".sass": ("Sass", "//"), ".less": ("Less", "//"),
+    ".json": ("JSON", None), ".yaml": ("YAML", "#"), ".yml": ("YAML", "#"), ".toml": ("TOML", "#"),
+    ".xml": ("XML", None), ".md": ("Markdown", None), ".tf": ("Terraform", "#"),
+    ".proto": ("Protobuf", "//"), ".cmake": ("CMake", "#"), ".nix": ("Nix", "#"),
+}
+NAMES = {"Makefile": ("Makefile", "#"), "Dockerfile": ("Dockerfile", "#"),
+         "CMakeLists.txt": ("CMake", "#")}
+SHEBANG = {"python": ("Python", "#"), "bash": ("Shell", "#"), "sh": ("Shell", "#"),
+           "zsh": ("Shell", "#"), "fish": ("Fish", "#"), "node": ("JavaScript", "//"),
+           "perl": ("Perl", "#"), "ruby": ("Ruby", "#")}
+SKIP_DIRS = {".git", "node_modules", "vendor", "dist", "build", "target", "__pycache__",
+             ".venv", "venv", ".tox", ".mypy_cache", ".next", ".cache"}
+
+
+def files(root):
+    try:
+        out = subprocess.run(["git", "-C", root, "ls-files", "-z", "-co", "--exclude-standard"],
+                             capture_output=True, check=True).stdout
+        return [os.path.join(root, f) for f in out.decode().split("\0") if f]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        result = []
+        for d, dirs, names in os.walk(root):
+            dirs[:] = [x for x in dirs if x not in SKIP_DIRS]
+            result += [os.path.join(d, n) for n in names]
+        return result
+
+
+def detect(path, first):
+    name = os.path.basename(path)
+    if name in NAMES:
+        return NAMES[name]
+    ext = os.path.splitext(name)[1].lower()
+    if ext:
+        return LANGS.get(ext)
+    if first.startswith("#!"):
+        for word, lang in SHEBANG.items():
+            if any(w.startswith(word) for w in first.split("/")[-1].split()):
+                return lang
+    return None
+
+
+def count(lines, prefix):
+    # ponytail: line comments only; /* */, """ etc. count as code. Use tokei/scc for exact numbers.
+    blank = comment = code = 0
+    for line in lines:
+        s = line.strip()
+        if not s:
+            blank += 1
+        elif prefix and s.startswith(prefix):
+            comment += 1
+        else:
+            code += 1
+    return blank, comment, code
+
+
+def main():
+    root = sys.argv[1] if len(sys.argv) > 1 else "."
+    stats = defaultdict(lambda: [0, 0, 0, 0])  # files, blank, comment, code
+    for path in files(root):
+        if not os.path.isfile(path) or os.path.islink(path):
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                lines = f.read().splitlines()
+        except (UnicodeDecodeError, OSError):
+            continue  # binary/unreadable
+        lang = detect(path, lines[0] if lines else "")
+        if not lang:
+            continue
+        s = stats[lang[0]]
+        s[0] += 1
+        for i, n in enumerate(count(lines, lang[1]), 1):
+            s[i] += n
+
+    rows = sorted(stats.items(), key=lambda kv: -kv[1][3])
+    total = [sum(col) for col in zip(*stats.values())] if stats else [0] * 4
+    fmt = "{:<18}{:>8}{:>10}{:>10}{:>10}"
+    print(fmt.format("Language", "Files", "Blank", "Comment", "Code"))
+    print("-" * 56)
+    for lang, s in rows:
+        print(fmt.format(lang, *s))
+    print("-" * 56)
+    print(fmt.format("Total", *total))
+
+
+if __name__ == "__main__":
+    assert count(["", "# c", "x = 1", "  // y"], "#") == (1, 1, 2)
+    main()
