@@ -3,9 +3,10 @@
 # Helix runs commands via sh so this can not be under fish
 set -euo pipefail
 
-PROMPT='Rewrite the git commit message on stdin to be more compact.
+PROMPT='Rewrite the git commit message(s) on stdin to be more compact.
 Rules:
 - Subject line: imperative mood, max 72 chars, keep any existing prefix (e.g. "feat:", "fix(scope):", ticket IDs).
+- If there are multiple subject lines (squashed commits) remove the additional subject lines and create new subject line that covers all of them.
 - Body: only if it adds information the subject lacks; short bullets, wrap at 72 chars.
 - Keep the why and any breaking changes; drop restated diff details, filler, and marketing tone.
 - Keep trailers (Co-Authored-By:, Signed-off-by:, Fixes #) verbatim at the end.
