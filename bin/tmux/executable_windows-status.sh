@@ -102,6 +102,23 @@ claude_mcp_elicitation_blocked() {
     return 0
 }
 
+# herdr's legacy_no_prompt_blocker (src/detect/manifests/claude.toml, prio 300).
+# Catches the plan-approval dialog ("Would you like to proceed?" + numbered
+# options, no esc/enter footer), which no other blocked rule sees.
+# herdr's live_prompt_box idle (950) outranks it; approximated by bailing when
+# a ❯ line is the input prompt rather than a numbered option ("❯ 1. Yes").
+claude_legacy_blocked() {
+    local text="$1" line
+    while IFS= read -r line; do
+        [[ "$line" =~ ^[[:space:]]*❯ && ! "$line" =~ ^[[:space:]]*❯[[:space:]]*[0-9]+\. ]] && return 1
+    done <<< "$text"
+    [[ ( "$text" == *'do you want to'* || "$text" == *'would you like to'* ) &&
+       ( "$text" == *yes* || "$text" == *❯* ) ]] && return 0
+    [[ "$text" == *'waiting for permission'* || "$text" == *'do you want to allow this connection?'* ||
+       "$text" == *'tab to amend'* || "$text" == *'ctrl+e to explain'* ||
+       "$text" == *'review your answers'* || "$text" == *'skip interview and plan immediately'* ]]
+}
+
 # Agent state from (title, bottom-of-screen text). Rules ported from
 # herdr's src/detect/manifests/{claude,hermes,github-copilot,pi}.toml.
 # Prints: working | blocked | idle
@@ -121,7 +138,8 @@ agent_state() {
             elif claude_mcp_elicitation_blocked "$text"; then
                 printf 'blocked'
             elif [[ "$text" == *'do you want to proceed?'* ]] ||
-                 { [[ "$text" == *'esc to cancel'* ]] && [[ "$text" == *'enter to select'* ]]; }; then
+                 { [[ "$text" == *'esc to cancel'* ]] && [[ "$text" == *'enter to select'* ]]; } ||
+                 claude_legacy_blocked "$text"; then
                 printf 'blocked'
             else
                 printf 'idle'
@@ -248,6 +266,8 @@ if [[ "$1" == --test ]]; then
     t working claude '' '* Running research · 2 MCP tasks still running'
     t blocked claude '' $'MCP server "figma" requests your input\n❯ Accept\n  Decline\nEsc to cancel'
     t idle    claude '' '* just some text'
+    t blocked claude '✳ add bye' $'Claude has written up a plan and is ready to execute. Would you like to proceed?\n\n ❯ 1. Yes, manually approve edits\n   2. Tell Claude what to change\n\n ctrl+g to edit in Hx · ~/.claude/plans/x.md'
+    t idle    claude '✳ add bye' $'would you like to proceed? yes\n────\n❯ \n────'
     t blocked hermes '⚠ auth error' ''
     t working hermes '⏳ thinking' ''
     t idle    hermes '✓ done' ''
@@ -320,6 +340,17 @@ cmd="$(normalize_cmd "$cmd")"
 # Hermes runs via python3/uv/pip but should show 🧠, not 🐍
 if [[ "$cmd" =~ ^(python3|python|uv|pip)$ ]] && echo "$title" | grep -qi 'hermes'; then
     cmd='hermes'
+fi
+
+# Wrapper scripts (e.g. bash claude-update.sh → claude) make pane_current_command
+# report the wrapper. Like herdr's identify_agent_in_job, scan the foreground
+# job (pgid == tty's tpgid) for a known agent.
+# ponytail: matches comm only, not argv — node-launched agents still read as node.
+if [[ -n "$pane_id" && "$cmd" =~ ^(bash|sh|dash|zsh|fish)$ ]]; then
+    pane_tty="$(tmux display-message -p -t "$pane_id" '#{pane_tty}' 2>/dev/null)"
+    job_agent="$(ps -o tpgid=,pgid=,comm= -t "${pane_tty#/dev/}" 2>/dev/null |
+        awk '$1 == $2 && $3 ~ /^(claude|hermes|pi|copilot|cursor-agent)$/ { print $3; exit }')"
+    [[ -n "$job_agent" ]] && cmd="$job_agent"
 fi
 
 # When hermes is launched from fish (via hermes.fish wrapper), pane_current_command
