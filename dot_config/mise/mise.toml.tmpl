@@ -21,6 +21,10 @@ fx = "39.2.0"
 fzf = "0.74.1"
 gh = "2.96.0"
 gum = "0.17.0"
+{{ if not (stat (joinPath .chezmoi.homeDir ".config/chezmoi/features/compiled-helix")) -}}
+# Prebuilt hx; hosts with the compiled-helix feature (enable-compiled-helix) build from source instead.
+helix = "25.07.1"
+{{ end -}}
 jq = "1.8.2"
 lazydocker = "0.25.2"
 lazygit = "0.63.1"

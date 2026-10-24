@@ -64,7 +64,8 @@ UV_TOOLS=(
 )
 
 # Non-mise installers: <name>:<function>. Mise tools come from mise.toml.
-# helix stays source-built (native opt profile) — prebuilt aqua/mise hx is not equivalent.
+# helix: prebuilt via mise by default; source-built (native opt profile) only when the
+# compiled-helix feature is enabled on this host.
 # purge-pre-mise runs after mise so replacements exist before apt/old bins are removed.
 INSTALLERS=(
     "apt:install_apt_group"
@@ -80,6 +81,10 @@ INSTALLERS=(
 )
 
 MISE_CONFIG="${HOME}/.config/mise/mise.toml"
+
+# Per-host opt-in flags: empty files in this dir (see fish enable-compiled-helix).
+FEATURES_DIR="${HOME}/.config/chezmoi/features"
+_feature_enabled() { [[ -e "${FEATURES_DIR}/$1" ]]; }
 
 _installer_for() {
     local entry
@@ -521,6 +526,16 @@ _cargo_cmd() {
 # Do not trust `hx -V`'s semver alone: apt helix and a source build at the same
 # tag both report e.g. 25.07.1. Match the parenthesized git hash to source HEAD.
 install_helix_from_source() {
+    if ! _feature_enabled compiled-helix; then
+        echo "ℹ️  helix: prebuilt via mise (run enable-compiled-helix to build from source)"
+        return 0
+    fi
+
+    # Compiled build owns hx; drop the mise copy so it can't shadow ~/.cargo/bin/hx.
+    if command -v mise >/dev/null 2>&1 && mise ls -g --no-header 2>/dev/null | grep -q '^helix\b'; then
+        mise unuse -g helix 2>&1 | _mise_out_filter
+    fi
+
     local cargo_cmd
     cargo_cmd=$(_cargo_cmd || true)
     if [[ -z "$cargo_cmd" ]]; then
