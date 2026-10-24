@@ -1,1 +1,5 @@
 dot_config/mise/mise.lock
+
+{{ if not (stat (joinPath .chezmoi.homeDir ".config/chezmoi/key.txt")) -}}
+.config/movie-info/config.json
+{{ end -}}
