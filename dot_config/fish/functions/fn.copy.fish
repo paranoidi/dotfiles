@@ -5,12 +5,13 @@ function cpath --description '📋 Copy full path of a file or directory to clip
     end
 
     if not test -e $argv[1]
-        echo "cpath: '$argv[1]' does not exist" >&2
+        echo "🚫 cpath: '$argv[1]' does not exist" >&2
         return 1
     end
 
     set -l full_path (realpath -- $argv[1])
-    printf '%s' "$full_path" | xclip -selection clipboard
+    printf '%s' "$full_path" | _clipboard_copy
+    or return 1
 
-    echo "Copied to clipboard: $full_path"
+    echo "🏆 Copied to clipboard: $full_path"
 end

@@ -15,6 +15,8 @@ Previous window|p / Alt-PgUp|p for previous
 Move after current win|Ctrl-Alt-PgDown
 Move before current win|Ctrl-Alt-PgUp
 Clear terminal and buffer|l|l is standard in shell
+Paste tmux buffer|Insert
+Choose buffer to paste|=
 Scroll up|Ctrl-PgUp
 Scroll down|Ctrl-PgDown
 Previous window|Ctrl-a twice
