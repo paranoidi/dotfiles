@@ -28,14 +28,3 @@ full_symbol = '🔋'
 [[battery.display]]
 threshold = 10
 style = 'red'
-
-# Builtin container module prints "[Systemd]" in LXC; systemd-detect-virt says lxc/docker.
-[container]
-disabled = true
-
-[custom.container]
-command = "systemd-detect-virt -c"
-when = "systemd-detect-virt -cq"
-symbol = "⬢"
-format = "[$symbol $output]($style) "
-style = "bold yellow dimmed"
