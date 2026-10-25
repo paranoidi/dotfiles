@@ -73,9 +73,13 @@ else                                   THRESHOLD=5
 fi
 
 if [ "$TOTAL_WINDOWS" -ge "$THRESHOLD" ]; then
-    # Hidden — show just the emoji icon
-    ICON="$(printf '%s' "$FULL" | awk '{print $1}')"
-    printf '%s' "$ICON"
+    # Icon-only status (no letters) — already as short as it gets, keep as-is
+    if printf '%s' "$FULL" | grep -q '[a-zA-Z]'; then
+        # Hidden — show just the emoji icon
+        printf '%s' "$(printf '%s' "$FULL" | awk '{print $1}')"
+    else
+        printf '%s' "$FULL"
+    fi
 else
     # Few windows — show full info
     printf '%s' "$FULL"

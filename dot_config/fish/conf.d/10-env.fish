@@ -2,7 +2,7 @@
 set -g fish_greeting
 set -g man_standout -b 222226 ffff00
 
-set -gx LANG en_US.UTF-8
+set -Ux LANG en_US.UTF-8
 set -gx LC_TIME en_DK.UTF-8
 
 # -gx, not -Ux: a global overrides EDITOR inherited from a stale tmux server
