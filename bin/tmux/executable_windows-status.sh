@@ -305,15 +305,17 @@ command_title_mode() {
     esac
 }
 
+# Known hosts get their own icon; unknown ones fall back to 📡 + short name.
 # Note: value is shortened by default fish_title to 10 characters
 host_label() {
     case "$1" in
         hime)                   printf '🎬' ;;
         raspberryp)             printf '🍇' ;;
         mamoru)                 printf '🔦' ;;
-        prox)                   printf '🛠️' ;;
+        yokai)                  printf '👹' ;;
+        prox)                   printf ' ' ;;
         orochi)                 printf '🚗' ;;
-        *)                      printf '%s' "${1:0:4}" ;;
+        *)                      printf '📡 %s' "${1:0:4}" ;;
     esac
 }
 
@@ -376,9 +378,9 @@ if [[ "$title" =~ ^\[([^]]+)\][[:space:]]*(.*)$ ]]; then
 
     if [[ "$cmd" == ssh || "$cmd" == scp ]] && [[ "$remote_icon" == "$remote_cmd" && -z "$remote_title_mode" ]]; then
         if [[ -n "$remote_title" ]]; then
-            printf '📡 %s %s' "$remote" "$remote_title"
+            printf '%s %s' "$remote" "$remote_title"
         else
-            printf '📡 %s' "$remote"
+            printf '%s' "$remote"
         fi
         exit 0
     fi
@@ -391,9 +393,9 @@ if [[ "$title" =~ ^\[([^]]+)\][[:space:]]*(.*)$ ]]; then
     fi
 
     if [[ -n "$remote_info" ]]; then
-        printf '📡 %s %s %s' "$remote" "$remote_icon" "$remote_info"
+        printf '%s %s %s' "$remote" "$remote_icon" "$remote_info"
     else
-        printf '📡 %s %s' "$remote" "$remote_icon"
+        printf '%s %s' "$remote" "$remote_icon"
     fi
     exit 0
 fi
@@ -413,11 +415,9 @@ if [[ "$title_mode" == remote ]]; then
         remote="${remote%\]}"
         remote="$(host_label "$remote")"
     fi
-    if [[ -n "$remote_path" ]]; then
-        info="$remote $remote_path"
-    else
-        info="$remote"
-    fi
+    # host label replaces the ssh icon
+    icon="$remote"
+    info="$remote_path"
 elif [[ "$title_mode" == short ]]; then
     info="$(short_title "$title" "$cmd" "$original_cmd")"
 else
@@ -495,4 +495,6 @@ if [[ -n "$pane_id" && "$cmd" =~ ^(claude|hermes|pi|copilot|cursor-agent)$ ]]; t
     esac
 fi
 
-printf '%s%s %s' "$badge" "$icon" "$info"
+printf '%s%s' "$badge" "$icon"
+[[ -n "$info" ]] && printf ' %s' "$info"
+exit 0
