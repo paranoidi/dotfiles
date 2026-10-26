@@ -40,9 +40,8 @@ command_icon() {
         cp|rsync|dd)            printf '💾' ;;
         ssh|scp)                printf '📡' ;;
         curl|wget|gh)           printf '🌐' ;;
-        eza|mc|pc)              printf '🗂️' ;;
-        vi|nvim)                printf '✏️' ;;
-        hx)                     printf '🧬' ;;
+        eza|mc|pc)              printf '📜' ;;
+        vi|hx)                  printf '🧬' ;;
         rm)                     printf '💀' ;;
         du|htop)                printf '📊' ;;
         pi|llm|aichat|copilot)  printf '🧠' ;;
