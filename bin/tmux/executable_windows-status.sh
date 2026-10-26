@@ -367,6 +367,16 @@ fi
 icon="$(command_icon "$cmd")"
 title_mode="$(command_title_mode "$cmd")"
 
+# Local windows lead with this machine's host icon (none if it has no icon).
+# fish_title truncates to 10 chars, see host_label.
+local_host="$(host_label "${HOSTNAME:0:10}")"
+[[ "$local_host" == 📡* ]] && local_host=""
+
+# fish_title prefixes "[host]" locally too; drop it for this machine
+if [[ "$title" =~ ^\[([^]]+)\][[:space:]]*(.*)$ && "${BASH_REMATCH[1]}" == "${HOSTNAME:0:10}" ]]; then
+    title="${BASH_REMATCH[2]}"
+fi
+
 if [[ "$title" =~ ^\[([^]]+)\][[:space:]]*(.*)$ ]]; then
     remote="$(host_label "${BASH_REMATCH[1]}")"
     remote_title="${BASH_REMATCH[2]}"
@@ -415,8 +425,9 @@ if [[ "$title_mode" == remote ]]; then
         remote="${remote%\]}"
         remote="$(host_label "$remote")"
     fi
-    # host label replaces the ssh icon
+    # remote host label replaces the ssh icon and the local host icon
     icon="$remote"
+    local_host=""
     info="$remote_path"
 elif [[ "$title_mode" == short ]]; then
     info="$(short_title "$title" "$cmd" "$original_cmd")"
@@ -495,6 +506,7 @@ if [[ -n "$pane_id" && "$cmd" =~ ^(claude|hermes|pi|copilot|cursor-agent)$ ]]; t
     esac
 fi
 
+[[ -n "$local_host" ]] && printf '%s ' "$local_host"
 printf '%s%s' "$badge" "$icon"
 [[ -n "$info" ]] && printf ' %s' "$info"
 exit 0
