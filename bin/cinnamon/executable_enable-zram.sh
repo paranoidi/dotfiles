@@ -1,10 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Proxmox (and other root-only hosts) ship without sudo
+if [[ $EUID -eq 0 ]]; then
+    SUDO=""
+elif command -v sudo &>/dev/null; then
+    SUDO="sudo"
+else
+    echo "❌ Run as root or install sudo." >&2
+    exit 1
+fi
+
 if ! dpkg -s systemd-zram-generator &>/dev/null; then
     echo "📦 Installing zram generator..."
-    sudo apt update || true
-    sudo apt install -y systemd-zram-generator
+    $SUDO apt update || true
+    $SUDO apt install -y systemd-zram-generator
 else
     echo "📦 zram generator already installed, skipping."
 fi
@@ -15,11 +25,11 @@ echo "💾 Writing configuration to $CONFIG_FILE..."
 
 # Backup if exists
 if [[ -f "$CONFIG_FILE" ]]; then
-    sudo cp "$CONFIG_FILE" "${CONFIG_FILE}.bak.$(date +%s)"
+    $SUDO cp "$CONFIG_FILE" "${CONFIG_FILE}.bak.$(date +%s)"
 fi
 
 # Create config
-sudo tee "$CONFIG_FILE" > /dev/null <<'EOF'
+$SUDO tee "$CONFIG_FILE" > /dev/null <<'EOF'
 [zram0]
 # Use up to 50% of RAM for zram
 zram-size = ram / 2
@@ -32,19 +42,19 @@ swap-priority = 100
 EOF
 
 echo "🔧 Reloading systemd daemon..."
-sudo systemctl daemon-reload
+$SUDO systemctl daemon-reload
 
 echo "🔧 Starting zram swap..."
 # Tear down existing zram swap before restarting the setup service (idempotency)
 if swapon --show | grep -q '/dev/zram0'; then
-    sudo swapoff /dev/zram0 || true
+    $SUDO swapoff /dev/zram0 || true
 fi
-sudo systemctl stop systemd-zram-setup@zram0.service 2>/dev/null || true
+$SUDO systemctl stop systemd-zram-setup@zram0.service 2>/dev/null || true
 # Reset the zram device if it exists so the generator can reconfigure it
 if [[ -e /sys/block/zram0/reset ]]; then
-    echo 1 | sudo tee /sys/block/zram0/reset > /dev/null
+    echo 1 | $SUDO tee /sys/block/zram0/reset > /dev/null
 fi
-sudo systemctl start systemd-zram-setup@zram0.service
+$SUDO systemctl start systemd-zram-setup@zram0.service
 
 # Wait briefly for the swap to become active
 for i in 1 2 3 4 5; do
