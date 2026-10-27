@@ -53,6 +53,42 @@ command_icon() {
     esac
 }
 
+# Path → icon replacement. Keyed on the display path ("~/..." form),
+# glob match, first hit wins — extend with your own dirs.
+path_icon() {
+    case "$1" in
+        *projects/homelab*)     printf '🧪' ;;
+        *)                      return 1 ;;
+    esac
+}
+
+# Agent-pane path → icon: replaces the path info with a project icon
+# whenever an agent pane sits in that dir (any state). Same case-table
+# shape as path_icon, gated on (cmd) — extend with your own dirs.
+agent_path_icon() {
+    local cmd="$2"
+    case "$cmd" in claude|hermes|pi|copilot|cursor-agent) ;; *) return 1 ;; esac
+    case "$1" in
+        *paras-commander*)      printf '👨‍💻' ;;
+        *flexget*)              printf '🛜' ;;
+        *)                      return 1 ;;
+    esac
+}
+
+# Helix sets no OSC title, so fish_title supplies "vi <file> <short-cwd>".
+# Show "dir/file": from the file arg when it carries a path, else
+# last(cwd) + filename. ponytail: single `<file>` arg only.
+helix_info() {
+    local title="$1" display="$2" f dir
+    f="${title#* }"; f="${f%% *}"
+    if [[ "$f" == */* ]]; then
+        dir="${f%/*}"
+        printf '%s/%s' "${dir##*/}" "${f##*/}"
+    else
+        printf '%s/%s' "${display##*/}" "$f"
+    fi
+}
+
 # Claude screen-text working fallbacks for when the OSC spinner title is
 # unavailable/stale — ported from herdr's live_turn_working /
 # background_agents_working rules (src/detect/manifests/claude.toml,
@@ -294,6 +330,22 @@ if [[ "$1" == --test ]]; then
     td '0 1' idle 1 idle          # second consecutive idle tick: confirmed
     td '0 0' idle 0 idle          # already confirmed earlier: don't re-fire
     td '0 0' idle 1 working       # work resumed before confirmation: flicker absorbed
+    tp() { local want="$1"; shift; local got; got="$(path_icon "$@")"
+           [[ "$got" == "$want" ]] || { echo "FAIL: path_icon $* -> '$got', want '$want'"; exit 1; }; }
+    tp '🧪' '~/projects/homelab'
+    tp '' '~/projects/foo'        # no match → nothing
+    ta() { local want="$1"; shift; local got; got="$(agent_path_icon "$@")"
+           [[ "$got" == "$want" ]] || { echo "FAIL: agent_path_icon $* -> '$got', want '$want'"; exit 1; }; }
+    ta '👨‍💻' '~/projects/paras-commander' claude working
+    ta '👨‍💻' '~/projects/paras-commander' claude idle
+    ta '' '~/projects/paras-commander' git working
+    ta '' '~/projects/other' claude working
+    th() { local want="$1"; shift; local got; got="$(helix_info "$@")"
+           [[ "$got" == "$want" ]] || { echo "FAIL: helix_info $* -> '$got', want '$want'"; exit 1; }; }
+    th 'tmux/windows-status.sh' 'vi windows-status.sh ~/b/tmux' '~/bin/tmux'
+    th 'tmux/windows-status.sh' 'windows-status.sh' '~/bin/tmux'
+    th 'src/main.rs' 'vi src/main.rs ~/b/tmux' '~/bin/tmux'
+    th 'x/hx' 'vi hx ~/b/tmux' '~/bin/x'
     echo OK
     exit 0
 fi
@@ -429,11 +481,20 @@ if [[ "$title_mode" == remote ]]; then
     icon="$remote"
     local_host=""
     info="$remote_path"
-elif [[ "$title_mode" == short ]]; then
-    info="$(short_title "$title" "$cmd" "$original_cmd")"
+elif [[ "$title_mode" == short || "$cmd" == hx ]]; then
+    # hx gets the same short-title path as vi/bat/less/man, but via the
+    # file argument in fish_title's "vi <file> <short-cwd>" — see helix_info.
+    if [[ "$cmd" == hx ]]; then
+        display="${path/$HOME/\~}"
+        info="$(helix_info "$title" "$display")"
+    else
+        info="$(short_title "$title" "$cmd" "$original_cmd")"
+    fi
 else
     display="${path/$HOME/\~}"
-    if [[ "$display" != */* ]]; then
+    if pico="$(path_icon "$display")"; then
+        info="$pico"
+    elif [[ "$display" != */* ]]; then
         # path is $HOME itself or a single-component path like /tmp
         info="$display"
     else
@@ -504,6 +565,10 @@ if [[ -n "$pane_id" && "$cmd" =~ ^(claude|hermes|pi|copilot|cursor-agent)$ ]]; t
         working) badge='👀' ;;
         idle)    [[ "$is_current" != 1 && -n "$(tmux show -pqvt "$pane_id" @agent_done 2>/dev/null)" ]] && badge='💡' ;;
     esac
+    # Agent working in a mapped dir: path info → project icon
+    if aip="$(agent_path_icon "$info" "$cmd" "$state")"; then
+        info="$aip"
+    fi
 fi
 
 [[ -n "$local_host" ]] && printf '%s ' "$local_host"
