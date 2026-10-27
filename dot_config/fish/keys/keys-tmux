@@ -8,6 +8,9 @@ Reload .tmux.conf|R|R for reload
 Send to all panes on|e|e for echo
 Send to all panes off|E|E for echo
 Kill session|K|K for kill
+Kill pane (confirm)|k|k for kill
+Close idle fish duplicates (same dir)|x|x for cross out
+Close all idle fish panes (not current)|X|X for cross out all
 Chat with LLM|i|i for intelligence
 List windows|w|w for windows
 Next window|n / Alt-PgDown|n for next
