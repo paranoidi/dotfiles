@@ -21,7 +21,7 @@ config.enable_tab_bar = false
 config.use_resize_increments = true
 config.font = wezterm.font("FiraCode Nerd Font")
 config.harfbuzz_features = {'calt=0', 'clig=0', 'liga=0'}
-config.custom_block_glyphs = false
+-- config.custom_block_glyphs = false
 config.window_padding = { left = 0, right = 0, top = 0, bottom = 0 }
 config.font_size = 13.0
 config.max_fps = 120
@@ -54,6 +54,12 @@ config.mouse_bindings = {
   { event = { Down = { streak = 1, button = 'Left' } },   mods = 'CTRL|SHIFT', action = act.OpenLinkAtMouseCursor },
   { event = { Drag = { streak = 1, button = 'Left' } },   mods = 'CTRL|SHIFT', action = act.StartWindowDrag },
   { event = { Drag = { streak = 1, button = 'Left' } },   mods = 'SUPER',      action = act.StartWindowDrag },
+
+  -- Ctrl+wheel = previous/next tab (like Ctrl+PgUp/PgDn); mouse_reporting=true covers tmux/vim grabbing the mouse
+  { event = { Down = { streak = 1, button = { WheelUp = 1 } } },   mods = 'CTRL', action = act.ActivateTabRelative(-1) },
+  { event = { Down = { streak = 1, button = { WheelDown = 1 } } }, mods = 'CTRL', action = act.ActivateTabRelative(1) },
+  { event = { Down = { streak = 1, button = { WheelUp = 1 } } },   mods = 'CTRL', mouse_reporting = true, action = act.ActivateTabRelative(-1) },
+  { event = { Down = { streak = 1, button = { WheelDown = 1 } } }, mods = 'CTRL', mouse_reporting = true, action = act.ActivateTabRelative(1) },
 }
 
 return config
