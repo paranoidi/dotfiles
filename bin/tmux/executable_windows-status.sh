@@ -486,6 +486,16 @@ fi
 icon="$(command_icon "$cmd")" || icon="$cmd"
 title_mode="$(command_title_mode "$cmd")"
 
+# Local windows lead with this machine's host icon (none if it has no icon).
+# fish_title truncates to 10 chars, see host_label.
+local_host="$(host_label "${HOSTNAME:0:10}")"
+[[ "$local_host" == 📡* ]] && local_host=""
+
+# fish_title prefixes "[host]" locally too; drop it for this machine
+if [[ "$title" =~ ^\[([^]]+)\][[:space:]]*(.*)$ && "${BASH_REMATCH[1]}" == "${HOSTNAME:0:10}" ]]; then
+    title="${BASH_REMATCH[2]}"
+fi
+
 # Title "[host] remote-title": a remote shell's fish_title, seen through ssh.
 if parse_bracket_host "$title"; then
     remote_original_cmd="${rest%% *}"
@@ -518,8 +528,9 @@ case "$title_mode" in
             h="${h#\[}"
             host="$(host_label "${h%\]}")"
         fi
-        # host label replaces the ssh icon
+        # remote host label replaces the ssh icon and the local host icon
         icon="$host"
+        local_host=""
         info="$rest" ;;
     short) info="$(short_title "$title" "$cmd" "$original_cmd")" ;;
     helix) info="$(helix_info "$title" "$display")" ;;
@@ -574,4 +585,4 @@ if [[ -n "$pane_id" ]] && is_agent "$cmd"; then
     fi
 fi
 
-words "$badge$icon" "$info"
+words "$local_host" "$badge$icon" "$info"
