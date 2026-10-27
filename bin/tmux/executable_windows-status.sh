@@ -95,15 +95,17 @@ command_title_mode() {
     esac
 }
 
+# Known hosts get their own icon; unknown ones fall back to 📡 + short name.
 # Note: value is shortened by default fish_title to 10 characters
 host_label() {
     case "$1" in
-        hime)                   printf '🎬' ;;
+        hime)                   printf '🍰' ;;
         raspberryp)             printf '🍇' ;;
         mamoru)                 printf '🔦' ;;
-        prox)                   printf '🛠️' ;;
+        yokai)                  printf '👹' ;;
+        prox)                   printf ' ' ;;
         orochi)                 printf '🚗' ;;
-        *)                      printf '%s' "${1:0:4}" ;;
+        *)                      printf '📡 %s' "${1:0:4}" ;;
     esac
 }
 
@@ -450,8 +452,8 @@ if [[ "$1" == --test ]]; then
     check 'foo.txt' short_title 'nvim foo.txt - NVIM' vi nvim
     check 'foo.txt' short_title 'vim foo.txt ~/x' vi vim
     check 'bash'    short_title 'man bash' man man
-    check '🎬'   host_label hime
-    check 'some' host_label somehost
+    check '🍰'      host_label hime
+    check '📡 some' host_label somehost
     check ''     command_icon nosuchcmd
     check 'a b'  words '' a '' b
     check 'x y'  ltrim '  x y'
@@ -492,7 +494,7 @@ if parse_bracket_host "$title"; then
     if ! remote_icon="$(command_icon "$remote_cmd")"; then
         # Unknown remote program over ssh (usually a bare path): show it verbatim
         if [[ "$title_mode" == remote && -z "$remote_title_mode" ]]; then
-            words '📡' "$host" "$rest"
+            words "$host" "$rest"
             exit 0
         fi
         remote_icon="$remote_cmd"
@@ -502,7 +504,7 @@ if parse_bracket_host "$title"; then
     else
         remote_info="$(ltrim "${rest#"$remote_original_cmd"}")"
     fi
-    words '📡' "$host" "$remote_icon" "$remote_info"
+    words "$host" "$remote_icon" "$remote_info"
     exit 0
 fi
 
@@ -516,7 +518,9 @@ case "$title_mode" in
             h="${h#\[}"
             host="$(host_label "${h%\]}")"
         fi
-        info="$(words "$host" "$rest")" ;;
+        # host label replaces the ssh icon
+        icon="$host"
+        info="$rest" ;;
     short) info="$(short_title "$title" "$cmd" "$original_cmd")" ;;
     helix) info="$(helix_info "$title" "$display")" ;;
     *)     info="$(path_info "$display")" ;;
@@ -570,4 +574,4 @@ if [[ -n "$pane_id" ]] && is_agent "$cmd"; then
     fi
 fi
 
-printf '%s%s %s' "$badge" "$icon" "$info"
+words "$badge$icon" "$info"
