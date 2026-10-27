@@ -490,6 +490,11 @@ title_mode="$(command_title_mode "$cmd")"
 # fish_title truncates to 10 chars, see host_label.
 local_host="$(host_label "${HOSTNAME:0:10}")"
 [[ "$local_host" == 📡* ]] && local_host=""
+# A colored status bar (status-bg set, see .tmux.conf) already identifies the host
+if [[ -n "$local_host" ]]; then
+    bar_bg="$(tmux display -p ${pane_id:+-t "$pane_id"} '#{status-bg}' 2>/dev/null)"
+    [[ "$bar_bg" =~ ^(|default|black)$ ]] || local_host=""
+fi
 
 # fish_title prefixes "[host]" locally too; drop it for this machine
 if [[ "$title" =~ ^\[([^]]+)\][[:space:]]*(.*)$ && "${BASH_REMATCH[1]}" == "${HOSTNAME:0:10}" ]]; then
