@@ -5,7 +5,7 @@
 #   $1  pane_current_command
 #   $2  pane_title
 #   $3  pane_current_path
-#   $4  pane_id (for agent state capture; optional)
+#   $4  pane_id (for agent detection + state capture; optional)
 #   $5  1 if this is the current window (clears the "done" flag), else 0/empty
 # Self-check: windows-status.sh --test
 
@@ -15,13 +15,46 @@ path="$3"
 pane_id="$4"
 is_current="$5"
 
-normalize_cmd() {
-    case "$1" in batcat) printf 'bat' ;; vim|nvim) printf 'vi' ;; git-remote-*|git-*) printf 'git' ;; *) printf '%s' "$1" ;; esac
+# Supported agents: command name → display name. The single list every
+# agent check (detection, state, badge, toast) goes through.
+declare -A AGENT_NAME=([claude]=Claude [hermes]=Hermes [pi]=Pi [copilot]=Copilot [cursor-agent]='Cursor Agent')
+is_agent() { [[ -n "$1" && -n "${AGENT_NAME[$1]+x}" ]]; }
+
+# --- small string helpers ---
+
+ltrim() { printf '%s' "${1#"${1%%[![:space:]]*}"}"; }
+
+# Join the non-empty args with single spaces.
+words() {
+    local out=() a
+    for a; do [[ -n "$a" ]] && out+=("$a"); done
+    printf '%s' "${out[*]}"
 }
 
+# "[host] rest" → globals host (via host_label) + rest; fails if no [host] prefix.
+parse_bracket_host() {
+    [[ "$1" =~ ^\[([^]]+)\][[:space:]]*(.*)$ ]] || return 1
+    host="$(host_label "${BASH_REMATCH[1]}")"
+    rest="${BASH_REMATCH[2]}"
+}
+
+# Drop a leading "cmd " / "original_cmd " and the trailing " - CMD" suffix
+# vim/nvim put in their titles (" - VIM", " - NVIM").
+strip_cmd() {
+    local s="${1#"$2 "}"
+    s="${s#"$3 "}"
+    printf '%s' "${s% - ${3^^}}"
+}
+
+# --- lookup tables ---
+
+normalize_cmd() {
+    case "$1" in batcat) printf 'bat' ;; vim|nvim) printf 'vi' ;; git-*) printf 'git' ;; *) printf '%s' "$1" ;; esac
+}
+
+# Prints the icon; fails (prints nothing) for unknown commands.
 command_icon() {
-    local cmd="$1"
-    case "$cmd" in
+    case "$1" in
         fish)                   printf '🐟' ;;
         bash)                   printf '😼' ;;
         python3|python|uv|pip)  printf '🐍' ;;
@@ -49,7 +82,28 @@ command_icon() {
         apt)                    printf '🔧' ;;
         man)                    printf '📖' ;;
         "./pc")                 printf '👨‍💻' ;;
-        *)                      printf '%s' "$1" ;;
+        *)                      return 1 ;;
+    esac
+}
+
+# How the info part is derived from the title (default: from the path).
+command_title_mode() {
+    case "$1" in
+        ssh|scp)                printf 'remote' ;;
+        vi|bat|less|man)        printf 'short' ;;
+        hx)                     printf 'helix' ;;
+    esac
+}
+
+# Note: value is shortened by default fish_title to 10 characters
+host_label() {
+    case "$1" in
+        hime)                   printf '🎬' ;;
+        raspberryp)             printf '🍇' ;;
+        mamoru)                 printf '🔦' ;;
+        prox)                   printf '🛠️' ;;
+        orochi)                 printf '🚗' ;;
+        *)                      printf '%s' "${1:0:4}" ;;
     esac
 }
 
@@ -62,17 +116,48 @@ path_icon() {
     esac
 }
 
-# Agent-pane path → icon: replaces the path info with a project icon
-# whenever an agent pane sits in that dir (any state). Same case-table
-# shape as path_icon, gated on (cmd) — extend with your own dirs.
+# Same shape as path_icon, but applied only to agent panes (any state):
+# replaces the path info with a project icon — extend with your own dirs.
 agent_path_icon() {
-    local cmd="$2"
-    case "$cmd" in claude|hermes|pi|copilot|cursor-agent) ;; *) return 1 ;; esac
     case "$1" in
         *paras-commander*)      printf '👨‍💻' ;;
         *flexget*)              printf '🛜' ;;
         *)                      return 1 ;;
     esac
+}
+
+# --- info formatters ---
+
+# Display path → "parent/base" (or just base when that's 20+ chars),
+# unless path_icon maps it.
+path_info() {
+    local display="$1" base parent candidate
+    if path_icon "$display"; then
+        return
+    elif [[ "$display" != */* ]]; then
+        # path is $HOME itself or a single-component path like /tmp
+        printf '%s' "$display"
+        return
+    fi
+    base="${display##*/}"
+    parent="${display%/*}"
+    parent="${parent##*/}"
+    if [[ -z "$parent" ]]; then
+        candidate="/$base"         # e.g. /tmp
+    else
+        candidate="$parent/$base"  # e.g. ~/bin or projects/myapp
+    fi
+    if [[ ${#candidate} -lt 20 ]]; then
+        printf '%s' "$candidate"
+    else
+        printf '%s' "$base"
+    fi
+}
+
+short_title() {
+    local s
+    s="$(strip_cmd "$1" "$2" "$3")"
+    printf '%s' "${s% [~\/]*}"       # strip trailing path-like word
 }
 
 # Helix sets no OSC title, so fish_title supplies "vi <file> <short-cwd>".
@@ -87,6 +172,25 @@ helix_info() {
     else
         printf '%s/%s' "${display##*/}" "$f"
     fi
+}
+
+# --- agent detection ---
+
+# Reads `ps -o tpgid=,pgid=,args=` lines; prints the first agent in the
+# foreground job (pgid == tty's tpgid). Like herdr's identify_agent_in_job,
+# but matching argv words too, so wrappers (bash claude-update.sh,
+# hermes.fish) and interpreters (python3 .../hermes, uv run hermes) resolve.
+# ponytail: checks the first 3 argv words by basename — node agents whose
+# script isn't named after the agent (claude/cli.js) still read as node.
+foreground_agent() {
+    awk -v agents="${!AGENT_NAME[*]}" '
+        BEGIN { n = split(agents, a, " "); for (i = 1; i <= n; i++) ok[a[i]] = 1 }
+        $1 == $2 {
+            for (i = 3; i <= 5 && i <= NF; i++) {
+                w = $i; sub(/.*\//, "", w)
+                if (w in ok) { print w; exit }
+            }
+        }'
 }
 
 # Claude screen-text working fallbacks for when the OSC spinner title is
@@ -264,259 +368,163 @@ idle_debounce() {
     fi
 }
 
+# --- tmux / desktop side effects ---
+
+popt_get() { tmux show -pqvt "$pane_id" "$1" 2>/dev/null; }
+popt_set() { tmux set -pt "$pane_id" "$@" 2>/dev/null; }
+
+# agent_toast icon duration_ms force(0|1) msg
 # Desktop/tmux toast via fish; tmux-only fallback when fish is unavailable.
 agent_toast() {
-    local icon="$1"; shift
-    local msg="$*"
+    local icon="$1" duration="$2" force="$3" msg="$4"
     if command -v fish >/dev/null 2>&1; then
-        export TOAST_ICON="$icon" TOAST_MSG="$msg"
         fish -c '
-            set -l flags
-            set -q TOAST_FORCE; and set -a flags -f
-            set -q TOAST_DURATION; and set -a flags -d $TOAST_DURATION
-            toast -i "$TOAST_ICON" $flags -- "$TOAST_MSG"
-        ' 2>/dev/null &
-        unset TOAST_FORCE TOAST_DURATION
+            set -l flags -d $argv[2]
+            test "$argv[3]" = 1; and set -a flags -f
+            toast -i $argv[1] $flags -- $argv[4]
+        ' "$icon" "$duration" "$force" "$msg" 2>/dev/null &
     elif command -v tmux >/dev/null 2>&1; then
         tmux display-message " $icon $msg" 2>/dev/null &
     fi
 }
 
 if [[ "$1" == --test ]]; then
-    t() { local want="$1"; shift; local got; got="$(agent_state "$@")"
-          [[ "$got" == "$want" ]] || { echo "FAIL: agent_state $* -> '$got', want '$want'"; exit 1; }; }
-    t working claude '⠐ fix parser' ''
-    t working claude '◐ fix parser' ''
-    t idle    claude '✳ fix parser' ''
-    t blocked claude '✳ fix parser' $'Bash command\nDo you want to proceed?\n ❯ 1. Yes'
-    t blocked claude '✳ fix parser' $'Enter to select · Esc to cancel'
-    t idle    claude '✳ fix parser' $'❯ '
-    t working claude '' '⏵ esc to interrupt'
-    t working claude '' '* Fetching data… (12s · esc to interrupt)'
-    t working claude '' '✻ Thinking…'
-    t working claude '' '⏸ Running · 2 shells · esc to interrupt'
-    t idle    claude '' '⏸ Running · 2 shells ·'
-    t working claude '' '✳ Fetching data… (12s · esc to interrupt)'
-    t working claude '' '* Waiting for 3 background agents to finish'
-    t working claude '' '* Running research · 2 MCP tasks still running'
-    t blocked claude '' $'MCP server "figma" requests your input\n❯ Accept\n  Decline\nEsc to cancel'
-    t idle    claude '' '* just some text'
-    t blocked claude '✳ add bye' $'Claude has written up a plan and is ready to execute. Would you like to proceed?\n\n ❯ 1. Yes, manually approve edits\n   2. Tell Claude what to change\n\n ctrl+g to edit in Hx · ~/.claude/plans/x.md'
-    t idle    claude '✳ add bye' $'would you like to proceed? yes\n────\n❯ \n────'
-    t blocked hermes '⚠ auth error' ''
-    t working hermes '⏳ thinking' ''
-    t idle    hermes '✓ done' ''
-    t blocked hermes '' $'Dangerous command\nAllow once   Deny\nEnter confirm'
-    t blocked hermes '' $'Hermes needs your input\nPress enter'
-    t blocked hermes '' $'ask what filename?\nEnter send'
-    t blocked hermes '' 'sudo password:'
-    t blocked hermes '' $'Approve once   Cancel\nEnter to confirm'
-    t working hermes '' 'ctrl+c to interrupt'
-    t working hermes '' 'esc … ctrl+c cancel'
-    t idle    hermes '' 'hermes> '
-    t blocked copilot '' 'Enter to select · Esc to cancel'
-    t working copilot '' 'Esc to cancel'
-    t idle    copilot '' '> '
-    t working pi '' 'Working...'
-    t idle    pi '' 'pi> '
-    t blocked cursor-agent '' 'Run this command? Run (once) (y)  Skip (esc or n)'
-    t working cursor-agent '' 'Ctrl+C to stop'
-    t working cursor-agent '' '⬢ Generating response'
-    t idle    cursor-agent '' '> '
-    td() { local want="$1"; shift; local got; got="$(idle_debounce "$@")"
-           [[ "$got" == "$want" ]] || { echo "FAIL: idle_debounce $* -> '$got', want '$want'"; exit 1; }; }
-    td '0 0' working 0 working    # still working: no pending, no fire
-    td '1 0' working 0 idle       # first idle tick after working: arm, don't fire yet
-    td '0 1' idle 1 idle          # second consecutive idle tick: confirmed
-    td '0 0' idle 0 idle          # already confirmed earlier: don't re-fire
-    td '0 0' idle 1 working       # work resumed before confirmation: flicker absorbed
-    tp() { local want="$1"; shift; local got; got="$(path_icon "$@")"
-           [[ "$got" == "$want" ]] || { echo "FAIL: path_icon $* -> '$got', want '$want'"; exit 1; }; }
-    tp '🧪' '~/projects/homelab'
-    tp '' '~/projects/foo'        # no match → nothing
-    ta() { local want="$1"; shift; local got; got="$(agent_path_icon "$@")"
-           [[ "$got" == "$want" ]] || { echo "FAIL: agent_path_icon $* -> '$got', want '$want'"; exit 1; }; }
-    ta '👨‍💻' '~/projects/paras-commander' claude working
-    ta '👨‍💻' '~/projects/paras-commander' claude idle
-    ta '' '~/projects/paras-commander' git working
-    ta '' '~/projects/other' claude working
-    th() { local want="$1"; shift; local got; got="$(helix_info "$@")"
-           [[ "$got" == "$want" ]] || { echo "FAIL: helix_info $* -> '$got', want '$want'"; exit 1; }; }
-    th 'tmux/windows-status.sh' 'vi windows-status.sh ~/b/tmux' '~/bin/tmux'
-    th 'tmux/windows-status.sh' 'windows-status.sh' '~/bin/tmux'
-    th 'src/main.rs' 'vi src/main.rs ~/b/tmux' '~/bin/tmux'
-    th 'x/hx' 'vi hx ~/b/tmux' '~/bin/x'
+    check() { local want="$1"; shift; local got; got="$("$@")"
+              [[ "$got" == "$want" ]] || { echo "FAIL: $* -> '$got', want '$want'"; exit 1; }; }
+    check working agent_state claude '⠐ fix parser' ''
+    check working agent_state claude '◐ fix parser' ''
+    check idle    agent_state claude '✳ fix parser' ''
+    check blocked agent_state claude '✳ fix parser' $'Bash command\nDo you want to proceed?\n ❯ 1. Yes'
+    check blocked agent_state claude '✳ fix parser' $'Enter to select · Esc to cancel'
+    check idle    agent_state claude '✳ fix parser' $'❯ '
+    check working agent_state claude '' '⏵ esc to interrupt'
+    check working agent_state claude '' '* Fetching data… (12s · esc to interrupt)'
+    check working agent_state claude '' '✻ Thinking…'
+    check working agent_state claude '' '⏸ Running · 2 shells · esc to interrupt'
+    check idle    agent_state claude '' '⏸ Running · 2 shells ·'
+    check working agent_state claude '' '✳ Fetching data… (12s · esc to interrupt)'
+    check working agent_state claude '' '* Waiting for 3 background agents to finish'
+    check working agent_state claude '' '* Running research · 2 MCP tasks still running'
+    check blocked agent_state claude '' $'MCP server "figma" requests your input\n❯ Accept\n  Decline\nEsc to cancel'
+    check idle    agent_state claude '' '* just some text'
+    check blocked agent_state claude '✳ add bye' $'Claude has written up a plan and is ready to execute. Would you like to proceed?\n\n ❯ 1. Yes, manually approve edits\n   2. Tell Claude what to change\n\n ctrl+g to edit in Hx · ~/.claude/plans/x.md'
+    check idle    agent_state claude '✳ add bye' $'would you like to proceed? yes\n────\n❯ \n────'
+    check blocked agent_state hermes '⚠ auth error' ''
+    check working agent_state hermes '⏳ thinking' ''
+    check idle    agent_state hermes '✓ done' ''
+    check blocked agent_state hermes '' $'Dangerous command\nAllow once   Deny\nEnter confirm'
+    check blocked agent_state hermes '' $'Hermes needs your input\nPress enter'
+    check blocked agent_state hermes '' $'ask what filename?\nEnter send'
+    check blocked agent_state hermes '' 'sudo password:'
+    check blocked agent_state hermes '' $'Approve once   Cancel\nEnter to confirm'
+    check working agent_state hermes '' 'ctrl+c to interrupt'
+    check working agent_state hermes '' 'esc … ctrl+c cancel'
+    check idle    agent_state hermes '' 'hermes> '
+    check blocked agent_state copilot '' 'Enter to select · Esc to cancel'
+    check working agent_state copilot '' 'Esc to cancel'
+    check idle    agent_state copilot '' '> '
+    check working agent_state pi '' 'Working...'
+    check idle    agent_state pi '' 'pi> '
+    check blocked agent_state cursor-agent '' 'Run this command? Run (once) (y)  Skip (esc or n)'
+    check working agent_state cursor-agent '' 'Ctrl+C to stop'
+    check working agent_state cursor-agent '' '⬢ Generating response'
+    check idle    agent_state cursor-agent '' '> '
+    check '0 0' idle_debounce working 0 working    # still working: no pending, no fire
+    check '1 0' idle_debounce working 0 idle       # first idle tick after working: arm, don't fire yet
+    check '0 1' idle_debounce idle 1 idle          # second consecutive idle tick: confirmed
+    check '0 0' idle_debounce idle 0 idle          # already confirmed earlier: don't re-fire
+    check '0 0' idle_debounce idle 1 working       # work resumed before confirmation: flicker absorbed
+    check '🧪' path_icon '~/projects/homelab'
+    check ''   path_icon '~/projects/foo'          # no match → nothing
+    check '👨‍💻' agent_path_icon '~/projects/paras-commander'
+    check ''   agent_path_icon '~/projects/other'
+    check '🧪'      path_info '~/projects/homelab/x'
+    check '~'       path_info '~'
+    check '/tmp'    path_info '/tmp'
+    check 'bin/tmux' path_info '~/bin/tmux'
+    check 'averyveryverylongname' path_info '~/projects/averyveryverylongname'
+    check 'tmux/windows-status.sh' helix_info 'vi windows-status.sh ~/b/tmux' '~/bin/tmux'
+    check 'tmux/windows-status.sh' helix_info 'windows-status.sh' '~/bin/tmux'
+    check 'src/main.rs' helix_info 'vi src/main.rs ~/b/tmux' '~/bin/tmux'
+    check 'x/hx' helix_info 'vi hx ~/b/tmux' '~/bin/x'
+    check 'foo.txt' short_title 'nvim foo.txt - NVIM' vi nvim
+    check 'foo.txt' short_title 'vim foo.txt ~/x' vi vim
+    check 'bash'    short_title 'man bash' man man
+    check '🎬'   host_label hime
+    check 'some' host_label somehost
+    check ''     command_icon nosuchcmd
+    check 'a b'  words '' a '' b
+    check 'x y'  ltrim '  x y'
+    check claude foreground_agent <<< $'100 100 bash claude-update.sh\n100 100 /home/u/.local/bin/claude --x'
+    check hermes foreground_agent <<< '100 100 python3 /home/u/.local/bin/hermes'
+    check hermes foreground_agent <<< '100 100 uv run hermes'
+    check ''     foreground_agent <<< $'100 100 -fish\n100 200 claude'   # claude not in foreground job
+    check ''     foreground_agent <<< '100 100 python3 script.py --x pi' # beyond argv[3]
     echo OK
     exit 0
 fi
 
-command_title_mode() {
-    case "$1" in
-        ssh|scp)                printf 'remote' ;;
-        vi|bat|less|man)        printf 'short' ;;
-    esac
-}
+# --- main ---
 
-# Known hosts get their own icon; unknown ones fall back to 📡 + short name.
-# Note: value is shortened by default fish_title to 10 characters
-host_label() {
-    case "$1" in
-        hime)                   printf '🎬' ;;
-        raspberryp)             printf '🍇' ;;
-        mamoru)                 printf '🔦' ;;
-        yokai)                  printf '👹' ;;
-        prox)                   printf ' ' ;;
-        orochi)                 printf '🚗' ;;
-        *)                      printf '📡 %s' "${1:0:4}" ;;
-    esac
-}
-
-short_title() {
-    local raw_title="$1"
-    local normalized_cmd="$2"
-    local original_title_cmd="$3"
-    local short_info="$raw_title"
-
-    short_info="${short_info#$normalized_cmd }"
-    short_info="${short_info#$original_title_cmd }"
-    short_info="${short_info% - ${original_title_cmd^^}}"  # strip trailing " - CMD" suffix (e.g. nvim → " - NVIM", vim → " - VIM")
-    short_info="${short_info% [~\/]*}"       # strip trailing path-like word
-    printf '%s' "$short_info"
-}
-
-# normalize aliases so icon + title-strip logic can use one canonical name
-# original_cmd is kept for suffix stripping (e.g. "- VIM", "- NVIM")
+# Normalize aliases so icon + title-strip logic use one canonical name;
+# original_cmd is kept for suffix stripping (e.g. "- VIM", "- NVIM").
 original_cmd="$cmd"
 cmd="$(normalize_cmd "$cmd")"
+display="${path/#$HOME/\~}"
 
-# Disambiguate before icon lookup so command_icon stays a pure case statement
-# Hermes runs via python3/uv/pip but should show 🧠, not 🐍
-if [[ "$cmd" =~ ^(python3|python|uv|pip)$ ]] && echo "$title" | grep -qi 'hermes'; then
-    cmd='hermes'
-fi
-
-# Wrapper scripts (e.g. bash claude-update.sh → claude) make pane_current_command
-# report the wrapper. Like herdr's identify_agent_in_job, scan the foreground
-# job (pgid == tty's tpgid) for a known agent.
-# ponytail: matches comm only, not argv — node-launched agents still read as node.
-if [[ -n "$pane_id" && "$cmd" =~ ^(bash|sh|dash|zsh|fish)$ ]]; then
-    pane_tty="$(tmux display-message -p -t "$pane_id" '#{pane_tty}' 2>/dev/null)"
-    job_agent="$(ps -o tpgid=,pgid=,comm= -t "${pane_tty#/dev/}" 2>/dev/null |
-        awk '$1 == $2 && $3 ~ /^(claude|hermes|pi|copilot|cursor-agent)$/ { print $3; exit }')"
-    [[ -n "$job_agent" ]] && cmd="$job_agent"
-fi
-
-# When hermes is launched from fish (via hermes.fish wrapper), pane_current_command
-# shows fish, not the underlying python3 process. Check process tree for hermes.
-if [[ "$cmd" == fish ]]; then
-    pane_pid="$(tmux display-message -p -t "$pane_id" '#{pane_pid}' 2>/dev/null)"
-    if [[ -n "$pane_pid" ]] && pstree -p "$pane_pid" 2>/dev/null | grep -qi 'hermes'; then
-        cmd='hermes'
+if [[ -n "$pane_id" ]]; then
+    read -r pane_tty win_idx <<< "$(tmux display-message -p -t "$pane_id" '#{pane_tty} #{window_index}' 2>/dev/null)"
+    # Shells/interpreters may be hosting an agent (wrapper script, python hermes).
+    if [[ -n "$pane_tty" && "$cmd" =~ ^(bash|sh|dash|zsh|fish|python3|python|uv|pip|node)$ ]]; then
+        job_agent="$(ps -o tpgid=,pgid=,args= -t "${pane_tty#/dev/}" 2>/dev/null | foreground_agent)"
+        [[ -n "$job_agent" ]] && cmd="$job_agent"
     fi
 fi
 
-# --- icon + title mode ---
-icon="$(command_icon "$cmd")"
+icon="$(command_icon "$cmd")" || icon="$cmd"
 title_mode="$(command_title_mode "$cmd")"
 
-# Local windows lead with this machine's host icon (none if it has no icon).
-# fish_title truncates to 10 chars, see host_label.
-local_host="$(host_label "${HOSTNAME:0:10}")"
-[[ "$local_host" == 📡* ]] && local_host=""
-
-# fish_title prefixes "[host]" locally too; drop it for this machine
-if [[ "$title" =~ ^\[([^]]+)\][[:space:]]*(.*)$ && "${BASH_REMATCH[1]}" == "${HOSTNAME:0:10}" ]]; then
-    title="${BASH_REMATCH[2]}"
-fi
-
-if [[ "$title" =~ ^\[([^]]+)\][[:space:]]*(.*)$ ]]; then
-    remote="$(host_label "${BASH_REMATCH[1]}")"
-    remote_title="${BASH_REMATCH[2]}"
-
-    remote_original_cmd="${remote_title%% *}"
+# Title "[host] remote-title": a remote shell's fish_title, seen through ssh.
+if parse_bracket_host "$title"; then
+    remote_original_cmd="${rest%% *}"
     remote_cmd="$(normalize_cmd "$remote_original_cmd")"
-    remote_icon="$(command_icon "$remote_cmd")"
     remote_title_mode="$(command_title_mode "$remote_cmd")"
-
-    if [[ "$cmd" == ssh || "$cmd" == scp ]] && [[ "$remote_icon" == "$remote_cmd" && -z "$remote_title_mode" ]]; then
-        if [[ -n "$remote_title" ]]; then
-            printf '%s %s' "$remote" "$remote_title"
-        else
-            printf '%s' "$remote"
+    if ! remote_icon="$(command_icon "$remote_cmd")"; then
+        # Unknown remote program over ssh (usually a bare path): show it verbatim
+        if [[ "$title_mode" == remote && -z "$remote_title_mode" ]]; then
+            words '📡' "$host" "$rest"
+            exit 0
         fi
-        exit 0
+        remote_icon="$remote_cmd"
     fi
-
     if [[ "$remote_title_mode" == short ]]; then
-        remote_info="$(short_title "$remote_title" "$remote_cmd" "$remote_original_cmd")"
+        remote_info="$(short_title "$rest" "$remote_cmd" "$remote_original_cmd")"
     else
-        remote_info="${remote_title#"$remote_original_cmd"}"
-        remote_info="${remote_info#"${remote_info%%[![:space:]]*}"}"
+        remote_info="$(ltrim "${rest#"$remote_original_cmd"}")"
     fi
-
-    if [[ -n "$remote_info" ]]; then
-        printf '%s %s %s' "$remote" "$remote_icon" "$remote_info"
-    else
-        printf '%s %s' "$remote" "$remote_icon"
-    fi
+    words '📡' "$host" "$remote_icon" "$remote_info"
     exit 0
 fi
 
-# --- info ---
-if [[ "$title_mode" == remote ]]; then
-    remote_title="${title#$cmd }"        # strip leading "cmd " if present
-    remote_title="${remote_title% - ${original_cmd^^}}"
-    if [[ "$remote_title" =~ ^\[([^]]+)\][[:space:]]*(.*)$ ]]; then
-        remote="$(host_label "${BASH_REMATCH[1]}")"
-        remote_path="${BASH_REMATCH[2]}"
-    else
-        remote="${remote_title%% *}"
-        remote_path="${remote_title#"$remote"}"
-        remote_path="${remote_path#"${remote_path%%[![:space:]]*}"}"
-        remote="${remote#\[}"
-        remote="${remote%\]}"
-        remote="$(host_label "$remote")"
-    fi
-    # remote host label replaces the ssh icon and the local host icon
-    icon="$remote"
-    local_host=""
-    info="$remote_path"
-elif [[ "$title_mode" == short || "$cmd" == hx ]]; then
-    # hx gets the same short-title path as vi/bat/less/man, but via the
-    # file argument in fish_title's "vi <file> <short-cwd>" — see helix_info.
-    if [[ "$cmd" == hx ]]; then
-        display="${path/$HOME/\~}"
-        info="$(helix_info "$title" "$display")"
-    else
-        info="$(short_title "$title" "$cmd" "$original_cmd")"
-    fi
-else
-    display="${path/$HOME/\~}"
-    if pico="$(path_icon "$display")"; then
-        info="$pico"
-    elif [[ "$display" != */* ]]; then
-        # path is $HOME itself or a single-component path like /tmp
-        info="$display"
-    else
-        base="${display##*/}"
-        parent_path="${display%/*}"
-        parent="${parent_path##*/}"
-        if [[ -z "$parent" ]]; then
-            candidate="/$base"         # e.g. /tmp
-        else
-            candidate="$parent/$base"  # e.g. ~/bin or projects/myapp
+case "$title_mode" in
+    remote)
+        # "ssh host path" / "ssh [host] path"
+        t="$(strip_cmd "$title" "$cmd" "$original_cmd")"
+        if ! parse_bracket_host "$t"; then
+            h="${t%% *}"
+            rest="$(ltrim "${t#"$h"}")"
+            h="${h#\[}"
+            host="$(host_label "${h%\]}")"
         fi
-        if [[ ${#candidate} -lt 20 ]]; then
-            info="$candidate"
-        else
-            info="$base"
-        fi
-    fi
-fi
+        info="$(words "$host" "$rest")" ;;
+    short) info="$(short_title "$title" "$cmd" "$original_cmd")" ;;
+    helix) info="$(helix_info "$title" "$display")" ;;
+    *)     info="$(path_info "$display")" ;;
+esac
 
 # ponytail: local agents only — behind ssh cmd is "ssh", no badge there
 badge=""
-if [[ -n "$pane_id" && "$cmd" =~ ^(claude|hermes|pi|copilot|cursor-agent)$ ]]; then
+if [[ -n "$pane_id" ]] && is_agent "$cmd"; then
     pane_text="$(tmux capture-pane -p -t "$pane_id" 2>/dev/null | tail -n 20)"
     state="$(agent_state "$cmd" "$title" "$pane_text")"
 
@@ -525,53 +533,41 @@ if [[ -n "$pane_id" && "$cmd" =~ ^(claude|hermes|pi|copilot|cursor-agent)$ ]]; t
     # State lives in pane user options, dies with the pane.
     # ponytail: idle must be confirmed for 2 polls (idle_debounce) before it
     # counts as "done" — a single flicker (e.g. mid-subagent render gap)
-    # otherwise false-rings. Raise AGENT_PENDING confirmations further if it
+    # otherwise false-rings. Raise the confirmation count further if it
     # still false-rings on a slower poll interval.
-    prev="$(tmux show -pqvt "$pane_id" @agent_prev 2>/dev/null)"
-    pending="$(tmux show -pqvt "$pane_id" @agent_pending_idle 2>/dev/null)"
-    read -r new_pending idle_confirmed <<< "$(idle_debounce "$prev" "$pending" "$state")"
-    tmux set -pt "$pane_id" @agent_prev "$state" 2>/dev/null
-    if [[ "$new_pending" == 1 ]]; then
-        tmux set -pt "$pane_id" @agent_pending_idle 1 2>/dev/null
-    else
-        tmux set -pt "$pane_id" -u @agent_pending_idle 2>/dev/null
-    fi
+    prev="$(popt_get @agent_prev)"
+    read -r new_pending idle_confirmed <<< "$(idle_debounce "$prev" "$(popt_get @agent_pending_idle)" "$state")"
+    popt_set @agent_prev "$state"
+    popt_set @agent_pending_idle "$new_pending"
+    agent_done="$(popt_get @agent_done)"
     if [[ "$is_current" == 1 ]]; then
-        tmux set -pt "$pane_id" -u @agent_done 2>/dev/null
+        agent_done=''
+        popt_set -u @agent_done
     elif [[ "$idle_confirmed" == 1 ]]; then
-        tmux set -pt "$pane_id" @agent_done 1 2>/dev/null
+        agent_done=1
+        popt_set @agent_done 1
     fi
 
     # One-shot desktop alerts on state edges (not every status refresh).
     if [[ -n "$prev" ]]; then
-        case "$cmd" in
-            cursor-agent) agent_name='Cursor Agent' ;;
-            claude)         agent_name='Claude' ;;
-            hermes)         agent_name='Hermes' ;;
-            copilot)        agent_name='Copilot' ;;
-            pi)             agent_name='Pi' ;;
-        esac
-        win_idx="$(tmux display-message -p -t "$pane_id" '#{window_index}' 2>/dev/null)"
+        agent_name="${AGENT_NAME[$cmd]}"
         notify_body="tmux window ${win_idx:-?} · ${info:-$path}"
         if [[ "$prev" != blocked && "$state" == blocked ]]; then
-            TOAST_FORCE=1 TOAST_DURATION=8000 agent_toast '🔔' "$agent_name needs your input — $notify_body"
+            agent_toast '🔔' 8000 1 "$agent_name needs your input — $notify_body"
         elif [[ "$is_current" != 1 && "$idle_confirmed" == 1 ]]; then
-            TOAST_DURATION=5000 agent_toast '💡' "$agent_name finished — $notify_body"
+            agent_toast '💡' 5000 0 "$agent_name finished — $notify_body"
         fi
     fi
 
     case "$state" in
         blocked) badge='🔔' ;;
         working) badge='👀' ;;
-        idle)    [[ "$is_current" != 1 && -n "$(tmux show -pqvt "$pane_id" @agent_done 2>/dev/null)" ]] && badge='💡' ;;
+        idle)    [[ -n "$agent_done" ]] && badge='💡' ;;
     esac
-    # Agent working in a mapped dir: path info → project icon
-    if aip="$(agent_path_icon "$info" "$cmd" "$state")"; then
+    # Agent pane in a mapped dir: path info → project icon
+    if aip="$(agent_path_icon "$display")"; then
         info="$aip"
     fi
 fi
 
-[[ -n "$local_host" ]] && printf '%s ' "$local_host"
-printf '%s%s' "$badge" "$icon"
-[[ -n "$info" ]] && printf ' %s' "$info"
-exit 0
+printf '%s%s %s' "$badge" "$icon" "$info"
