@@ -42,6 +42,12 @@ zoxide = "0.10.0"
 "cargo:reef-shell" = "0.3.0"
 "cargo:amoxide" = "0.10.5"
 
+[env]
+# mise's go plugin exports GOBIN=<its per-version go install>/bin, so a plain
+# `go install` would land inside mise's tree and vanish on the next go upgrade.
+# Config [env] wins over the plugin: keep every `go install` in GOPATH/bin.
+GOBIN = "{{ .chezmoi.homeDir }}/go/bin"
+
 [settings]
 experimental = true
 lockfile = true

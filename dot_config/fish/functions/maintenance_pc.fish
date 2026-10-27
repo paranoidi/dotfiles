@@ -21,12 +21,10 @@ function maintenance_pc
             set -a install_flags -a
         end
 
-        # mise sets GOBIN to its per-version go dir; pin pc to ~/go/bin instead so
-        # it survives go upgrades and there is exactly one copy
-        set -l pc_dir (path normalize (go env GOPATH)/bin)
-        set -l pc_bin $pc_dir/pc
+        # go install lands in GOPATH/bin: the global mise [env] pins GOBIN there
+        set -l pc_bin (path normalize (go env GOPATH)/bin/pc)
 
-        if not env GOPROXY=direct GOBIN=$pc_dir go install $install_flags github.com/paranoidi/paras-commander/cmd/pc@main
+        if not env GOPROXY=direct go install $install_flags github.com/paranoidi/paras-commander/cmd/pc@main
             echo "🚫 maintenance_pc: go install failed" >&2
             tmux-progress clear
             return 1
