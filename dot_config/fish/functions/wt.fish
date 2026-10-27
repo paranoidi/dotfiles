@@ -493,22 +493,52 @@ function __wt_dirty_lines -a wtdir
 end
 
 # ── wt done <name> (alias: d) ─────────────────────────────────────────
+# Runs __wt_done_run with its output mirrored to /tmp/wt-done-<repo>-<name>.log.
+# On merge conflict (status 2) the whole log is copied to the clipboard.
 function __wt_done -a root_dir worktree_dir name
+    set -l repo (basename $root_dir)
+    set -g __wt_log /tmp/wt-done-$repo-(string replace -a / - -- "$name").log
+    printf '' >$__wt_log
+
+    __wt_done_run $root_dir $worktree_dir $name
+    set -l rc $status
+
+    set -l log $__wt_log
+    set -e __wt_log
+    if test $rc -eq 2
+        echo "📝 log: $log" >&2
+        if _clipboard_copy <$log
+            echo "📋 conflict log copied to clipboard" >&2
+        end
+    end
+    return $rc
+end
+
+# Mirror stdin to the terminal and append it to $__wt_log when logging is active
+function __wt_tee
+    if set -q __wt_log
+        command tee -a $__wt_log
+    else
+        cat
+    end
+end
+
+function __wt_done_run -a root_dir worktree_dir name
     set -l wtdir "$worktree_dir/$name"
 
     if test -z "$name"
-        echo "usage: wt done [name]  (alias: d; name defaults when cwd is under .worktrees/<name>)" >&2
+        echo "usage: wt done [name]  (alias: d; name defaults when cwd is under .worktrees/<name>)" | __wt_tee >&2
         return 1
     end
     if not test -d "$wtdir"
-        echo "🚫 worktree '$name' not found at $wtdir" >&2
+        echo "🚫 worktree '$name' not found at $wtdir" | __wt_tee >&2
         return 1
     end
 
     set -l dirty (__wt_dirty_lines $wtdir)
     if test (count $dirty) -gt 0
-        echo "🚫 worktree '$name' has uncommitted changes — commit or stash before finishing:" >&2
-        printf '%s\n' $dirty >&2
+        echo "🚫 worktree '$name' has uncommitted changes — commit or stash before finishing:" | __wt_tee >&2
+        printf '%s\n' $dirty | __wt_tee >&2
         return 1
     end
 
@@ -518,18 +548,18 @@ function __wt_done -a root_dir worktree_dir name
     set -l task_branch "task/$name"
     set -l actual_branch (git -C $wtdir rev-parse --abbrev-ref HEAD 2>/dev/null)
     if test "$actual_branch" != "$task_branch"
-        echo "🚫 worktree '$name' has '$actual_branch' checked out, not '$task_branch'" >&2
-        echo "   wt done only manages '$task_branch' — it will not merge or delete '$actual_branch'." >&2
-        echo "   Merge/rename '$actual_branch' manually (in $wtdir), then re-run wt done." >&2
+        echo "🚫 worktree '$name' has '$actual_branch' checked out, not '$task_branch'" | __wt_tee >&2
+        echo "   wt done only manages '$task_branch' — it will not merge or delete '$actual_branch'." | __wt_tee >&2
+        echo "   Merge/rename '$actual_branch' manually (in $wtdir), then re-run wt done." | __wt_tee >&2
         return 1
     end
 
-    echo "🎉 Finishing task: $name"
+    echo "🎉 Finishing task: $name" | __wt_tee
 
     # cd to root_dir first so the shell's CWD survives worktree removal
     cd $root_dir
     or begin
-        echo "🚫 could not cd to project root $root_dir" >&2
+        echo "🚫 could not cd to project root $root_dir" | __wt_tee >&2
         return 1
     end
 
@@ -550,7 +580,7 @@ function __wt_done -a root_dir worktree_dir name
         end
     end
     if test -z "$target_branch"
-        echo "🚫 could not determine target branch — create worktree with 'wt start' or set .wt-base manually" >&2
+        echo "🚫 could not determine target branch — create worktree with 'wt start' or set .wt-base manually" | __wt_tee >&2
         return 1
     end
 
@@ -564,13 +594,13 @@ function __wt_done -a root_dir worktree_dir name
         contains -- $f $merge_files; and set -a clash $f
     end
     if test -n "$clash"
-        echo "🚫 $root_dir has uncommitted changes to files this merge touches — commit or stash them before running wt done:" >&2
-        printf '   %s\n' $clash >&2
+        echo "🚫 $root_dir has uncommitted changes to files this merge touches — commit or stash them before running wt done:" | __wt_tee >&2
+        printf '   %s\n' $clash | __wt_tee >&2
         return 1
     end
     if test -n "$root_dirty"
-        echo "⚠️  destination $root_dir has uncommitted changes (not touched by this merge):"
-        printf '   %s\n' $root_dirty
+        echo "⚠️  destination $root_dir has uncommitted changes (not touched by this merge):" | __wt_tee
+        printf '   %s\n' $root_dirty | __wt_tee
         read -l -P 'continue? [y/N] ' answer
         or return 1
         string match -qi y -- "$answer"; or return 1
@@ -578,64 +608,65 @@ function __wt_done -a root_dir worktree_dir name
 
     # 2. Merge from primary repo ($root_dir). The integration branch is often checked out only
     #    there; a task worktree cannot check it out, which used to yield a false "Already up to date".
-    echo "🔀 Merging into $target_branch"
-    git -C $root_dir fetch origin $target_branch 2>/dev/null; or echo "  (no remote / fetch skipped)"
-    git -C $root_dir checkout $target_branch
-    if test $status -ne 0
-        echo "🚫 could not checkout $target_branch in $root_dir (resolve repo state and retry)" >&2
+    echo "🔀 Merging into $target_branch" | __wt_tee
+    git -C $root_dir fetch origin $target_branch 2>/dev/null; or echo "  (no remote / fetch skipped)" | __wt_tee
+    git -C $root_dir checkout $target_branch 2>&1 | __wt_tee
+    if test $pipestatus[1] -ne 0
+        echo "🚫 could not checkout $target_branch in $root_dir (resolve repo state and retry)" | __wt_tee >&2
         return 1
     end
     # Re-run after a conflicted merge: handle the leftover state instead of blindly re-merging.
     # A bare `git merge` cannot resume a conflicted merge, so the old "just run wt done again"
     # advice looped on the same error until the user committed.
     if git -C $root_dir rev-parse -q --verify MERGE_HEAD &>/dev/null
-        echo "🚫 unfinished merge in $root_dir — resolve the conflicts, then:" >&2
-        echo "     git add -u && git commit --no-edit" >&2
-        echo "   then re-run: wt done $name" >&2
-        return 1
+        echo "🚫 unfinished merge in $root_dir — resolve the conflicts, then:" | __wt_tee >&2
+        echo "     git add -u && git commit --no-edit" | __wt_tee >&2
+        echo "   then re-run: wt done $name" | __wt_tee >&2
+        return 2
     end
     if git -C $root_dir merge-base --is-ancestor $task_branch $target_branch &>/dev/null
-        echo "  $task_branch already merged into $target_branch — skipping to cleanup"
+        echo "  $task_branch already merged into $target_branch — skipping to cleanup" | __wt_tee
     else
         # Fast-forward only. `git pull` honours pull.rebase=true, which rewrites a
         # merge-heavy local integration branch into new SHAs and then replays
         # every worktree's old commits as conflicts on the next run.
-        git -C $root_dir merge --ff-only origin/$target_branch 2>/dev/null; or echo "  (no remote or $target_branch ahead of origin — ff skipped)"
-        git -C $root_dir merge $task_branch --no-edit --no-verify
-        if test $status -ne 0
-            echo "🚫 conflicts merging $task_branch into $target_branch. Finish in $root_dir:" >&2
-            echo "     1. resolve the conflicted files" >&2
-            echo "     2. git add -u && git commit --no-edit" >&2
-            echo "     3. wt done $name   (completes cleanup)" >&2
-            return 1
+        git -C $root_dir merge --ff-only origin/$target_branch 2>/dev/null | __wt_tee
+        test $pipestatus[1] -eq 0; or echo "  (no remote or $target_branch ahead of origin — ff skipped)" | __wt_tee
+        git -C $root_dir merge $task_branch --no-edit --no-verify 2>&1 | __wt_tee
+        if test $pipestatus[1] -ne 0
+            echo "🚫 conflicts merging $task_branch into $target_branch. Finish in $root_dir:" | __wt_tee >&2
+            echo "     1. resolve the conflicted files" | __wt_tee >&2
+            echo "     2. git add -u && git commit --no-edit" | __wt_tee >&2
+            echo "     3. wt done $name   (completes cleanup)" | __wt_tee >&2
+            return 2
         end
-        echo "  merged $task_branch -> $target_branch (local only — push manually if needed)"
+        echo "  merged $task_branch -> $target_branch (local only — push manually if needed)" | __wt_tee
     end
 
     # 3. Safety gate — refuse to touch the worktree or branch unless task_branch is
     #    provably merged into target_branch. Last line of defense against deleting
     #    unmerged work; do not remove or relax this check.
     if not git -C $root_dir merge-base --is-ancestor $task_branch $target_branch &>/dev/null
-        echo "🚫 $task_branch is NOT fully merged into $target_branch — refusing to remove worktree or branch." >&2
-        echo "   worktree kept: $wtdir" >&2
-        echo "   branch kept:   $task_branch" >&2
-        echo "   Resolve manually (merge/rebase/push), then re-run: wt done $name" >&2
+        echo "🚫 $task_branch is NOT fully merged into $target_branch — refusing to remove worktree or branch." | __wt_tee >&2
+        echo "   worktree kept: $wtdir" | __wt_tee >&2
+        echo "   branch kept:   $task_branch" | __wt_tee >&2
+        echo "   Resolve manually (merge/rebase/push), then re-run: wt done $name" | __wt_tee >&2
         return 1
     end
 
     # 4. Cleanup — remove worktree first so task_branch is no longer checked out, then delete branch ref
-    echo "💀 Removing worktree"
+    echo "💀 Removing worktree" | __wt_tee
     git -C $root_dir worktree remove $wtdir 2>/dev/null
     or git -C $root_dir worktree remove --force $wtdir 2>/dev/null
     git -C $root_dir worktree prune
-    git -C $root_dir branch -d $task_branch 2>/dev/null
-    if test $status -ne 0
-        echo "🚫 could not delete $task_branch even though it's merged into $target_branch (unexpected — left intact for manual cleanup)" >&2
+    git -C $root_dir branch -d $task_branch 2>/dev/null | __wt_tee
+    if test $pipestatus[1] -ne 0
+        echo "🚫 could not delete $task_branch even though it's merged into $target_branch (unexpected — left intact for manual cleanup)" | __wt_tee >&2
         return 1
     end
 
-    echo ""
-    echo "🏆 Done: $name -- merged to $target_branch"
+    echo "" | __wt_tee
+    echo "🏆 Done: $name -- merged to $target_branch" | __wt_tee
 end
 
 # ── wt done (no args, not under worktree: fzf single-select) ────────
