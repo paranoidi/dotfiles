@@ -15,6 +15,9 @@ customize_cinnamon() {
 
     # Number of workspaces
     gsettings set org.cinnamon.desktop.wm.preferences num-workspaces 4
+
+    # Maximize on drag
+    gsettings set org.cinnamon.muffin tile-maximize true
 }
 
 # Disable Grouped Window List Super+number shortcuts (all instances)
