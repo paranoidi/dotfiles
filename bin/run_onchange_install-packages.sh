@@ -310,6 +310,7 @@ purge_pre_mise_duplicates() {
         "${HOME}/.local/bin/duf" \
         "${HOME}/.local/bin/fx" \
         "${HOME}/.local/bin/task" \
+        "${HOME}/.local/bin/cship" \
         "${HOME}/go/bin/gum" \
         "${HOME}/go/bin/lazygit" \
         "${HOME}/go/bin/duf" \

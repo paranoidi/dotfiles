@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+# Claude Code rewrites settings.json itself; only pin the keys we own.
+import json, sys
+
+src = sys.stdin.read()
+s = json.loads(src) if src.strip() else {}
+s["statusLine"] = {"type": "command", "command": "{{ .chezmoi.homeDir }}/.local/share/mise/shims/cship"}
+print(json.dumps(s, indent=2, ensure_ascii=False))
