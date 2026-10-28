@@ -103,7 +103,7 @@ host_label() {
         raspberryp)             printf '🍇' ;;
         mamoru)                 printf '🔦' ;;
         yokai)                  printf '👹' ;;
-        prox)                   printf ' ' ;;
+        prox)                   printf '🔱' ;;
         orochi)                 printf '🚗' ;;
         *)                      printf '📡 %s' "${1:0:4}" ;;
     esac
