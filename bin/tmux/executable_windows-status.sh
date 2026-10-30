@@ -103,7 +103,7 @@ host_label() {
         raspberryp)             printf '🍇' ;;
         mamoru)                 printf '🔦' ;;
         yokai)                  printf '👹' ;;
-        prox)                   printf '🔱' ;;
+        prox|proxmox)           printf '🔱' ;;
         orochi)                 printf '🚗' ;;
         *)                      printf '📡 %s' "${1:0:4}" ;;
     esac
@@ -454,6 +454,7 @@ if [[ "$1" == --test ]]; then
     check 'bash'    short_title 'man bash' man man
     check '🍰'      host_label hime
     check '📡 some' host_label somehost
+    check '🔱'      host_label proxmox
     check ''     command_icon nosuchcmd
     check 'a b'  words '' a '' b
     check 'x y'  ltrim '  x y'
@@ -528,8 +529,10 @@ case "$title_mode" in
         # "ssh host path" / "ssh [host] path"
         t="$(strip_cmd "$title" "$cmd" "$original_cmd")"
         if ! parse_bracket_host "$t"; then
+            # No [host] prefix: the remote shell sets no title, so what follows
+            # the host is our own local fish_title cwd — useless, drop it.
             h="${t%% *}"
-            rest="$(ltrim "${t#"$h"}")"
+            rest=""
             h="${h#\[}"
             host="$(host_label "${h%\]}")"
         fi
@@ -590,4 +593,9 @@ if [[ -n "$pane_id" ]] && is_agent "$cmd"; then
     fi
 fi
 
-words "$local_host" "$badge$icon" "$info"
+# Linked git worktree (git-dir differs from the shared common dir) → suffix
+worktree=""
+{ read -r git_dir; read -r common_dir; } < <(git -C "$path" rev-parse --path-format=absolute --git-dir --git-common-dir 2>/dev/null)
+[[ -n "$git_dir" && "$git_dir" != "$common_dir" ]] && worktree=$' '
+
+words "$local_host" "$badge$icon" "$info" "$worktree"
