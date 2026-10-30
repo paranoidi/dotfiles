@@ -1,5 +1,5 @@
 function _spinner --description 'Run a command with a gum spinner when available'
-    argparse --stop-nonopt --name=_spinner 'fallback-prefix=' -- $argv
+    argparse --name=_spinner 'fallback-prefix=' -- $argv
     or return
 
     set -l title $argv[1]
