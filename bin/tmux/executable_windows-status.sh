@@ -531,10 +531,15 @@ case "$title_mode" in
         if ! parse_bracket_host "$t"; then
             # No [host] prefix: the remote shell sets no title, so what follows
             # the host is our own local fish_title cwd — useless, drop it.
-            h="${t%% *}"
+            # A remote program (e.g. claude: "✳ task") may own the title
+            # entirely, so prefer the host from the foreground ssh's argv.
+            # ponytail: first non-dash arg — "ssh -p 22 host" would pick "22".
+            h="$(ps -o tpgid=,pgid=,args= -t "${pane_tty#/dev/}" 2>/dev/null |
+                 awk '$1 == $2 && $3 ~ /(^|\/)ssh$/ { for (i = 4; i <= NF; i++) if ($i !~ /^-/) { print $i; exit } }')"
+            [[ -n "$h" ]] || h="${t%% *}"
             rest=""
-            h="${h#\[}"
-            host="$(host_label "${h%\]}")"
+            h="${h#\[}"; h="${h%\]}"
+            host="$(host_label "${h#*@}")"
         fi
         # remote host label replaces the ssh icon and the local host icon
         icon="$host"

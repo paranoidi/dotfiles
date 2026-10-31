@@ -22,4 +22,5 @@ while IFS=' ' read -r id cmd path; do
     fi
 done <<<"$ordered"
 
-tmux display-message "Closed $n idle fish pane(s)"
+# tmux display-message "Closed $n idle fish pane(s)"
+fish -c "tmux-progress 'Closed $n idlers' && sleep 2s && tmux-progress clear"
