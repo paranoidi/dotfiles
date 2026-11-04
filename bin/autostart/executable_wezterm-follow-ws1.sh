@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+[[ ${XDG_CURRENT_DESKTOP:-} == *Cinnamon* ]] || { echo "$0: not Cinnamon, aborting" >&2; exit 1; }
 # Move all WezTerm windows to workspace 1 whenever workspace 1 is entered.
 CLASS="org.wezfurlong.wezterm.org.wezfurlong.wezterm"
 xprop -root -spy _NET_CURRENT_DESKTOP | while read -r line; do
