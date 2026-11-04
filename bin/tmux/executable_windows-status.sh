@@ -184,9 +184,18 @@ helix_info() {
 # hermes.fish) and interpreters (python3 .../hermes, uv run hermes) resolve.
 # ponytail: checks the first 3 argv words by basename — node agents whose
 # script isn't named after the agent (claude/cli.js) still read as node.
+# Hermes' newer installer launcher is `python3 -I -c '<bootstrap>'` (ps shows
+# the code's newlines as spaces): herdr's hermes_installer_agent_name
+# (src/detect/mod.rs, 43b36b68) keys on the bootstrap import + the
+# hermes_cli.main entry, rejecting the --run-module/--print-runtime-command
+# helper modes passed after the code.
 foreground_agent() {
     awk -v agents="${!AGENT_NAME[*]}" '
         BEGIN { n = split(agents, a, " "); for (i = 1; i <= n; i++) ok[a[i]] = 1 }
+        $1 == $2 && / -c import os, re, sys / && /import hermes_bootstrap/ &&
+        /from hermes_cli\.main import main / && !/sys\.exit\(main\(\)\) +--(run-module|print-runtime-command)/ {
+            print "hermes"; exit
+        }
         $1 == $2 {
             for (i = 3; i <= 5 && i <= NF; i++) {
                 w = $i; sub(/.*\//, "", w)
@@ -279,7 +288,8 @@ agent_state() {
             elif claude_mcp_elicitation_blocked "$text"; then
                 printf 'blocked'
             elif [[ "$text" == *'do you want to proceed?'* ]] ||
-                 { [[ "$text" == *'esc to cancel'* ]] && [[ "$text" == *'enter to select'* ]]; } ||
+                 { [[ "$text" == *'esc to cancel'* ]] &&
+                   [[ "$text" == *'enter to select'* || "$text" == *'enter to confirm'* ]]; } ||
                  claude_legacy_blocked "$text"; then
                 printf 'blocked'
             else
@@ -329,8 +339,10 @@ agent_state() {
                 printf 'idle'
             fi ;;
         pi)
-            # ponytail: herdr's pi relies on socket hooks; screen manifest only has this
-            if [[ "$text" == *'working...'* ]]; then
+            # ponytail: herdr's pi relies on socket hooks; screen manifest only has these
+            # (pi.toml 7fe5a7cd/07e3840b: "⠋ Working" line or "── ⠋ Working ───" border)
+            local pi_re=$'(^|\n)(── )?[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] working( ─+)?(\n|$)'
+            if [[ "$text" == *'working...'* || "$text" =~ $pi_re ]]; then
                 printf 'working'
             else
                 printf 'idle'
@@ -398,6 +410,7 @@ if [[ "$1" == --test ]]; then
     check idle    agent_state claude '✳ fix parser' ''
     check blocked agent_state claude '✳ fix parser' $'Bash command\nDo you want to proceed?\n ❯ 1. Yes'
     check blocked agent_state claude '✳ fix parser' $'Enter to select · Esc to cancel'
+    check blocked agent_state claude '✳ fix parser' $'Submit answers?\nEnter to confirm · Esc to cancel\n──────── my-session'
     check idle    agent_state claude '✳ fix parser' $'❯ '
     check working agent_state claude '' '⏵ esc to interrupt'
     check working agent_state claude '' '* Fetching data… (12s · esc to interrupt)'
@@ -426,6 +439,8 @@ if [[ "$1" == --test ]]; then
     check working agent_state copilot '' 'Esc to cancel'
     check idle    agent_state copilot '' '> '
     check working agent_state pi '' 'Working...'
+    check working agent_state pi '' $'out\n⠹ Working\n> '
+    check working agent_state pi '' '── ⠼ Working ──────'
     check idle    agent_state pi '' 'pi> '
     check blocked agent_state cursor-agent '' 'Run this command? Run (once) (y)  Skip (esc or n)'
     check working agent_state cursor-agent '' 'Ctrl+C to stop'
@@ -461,6 +476,11 @@ if [[ "$1" == --test ]]; then
     check claude foreground_agent <<< $'100 100 bash claude-update.sh\n100 100 /home/u/.local/bin/claude --x'
     check hermes foreground_agent <<< '100 100 python3 /home/u/.local/bin/hermes'
     check hermes foreground_agent <<< '100 100 uv run hermes'
+    hb='python3 -I -c import os, re, sys import contextlib if sys.argv[1:2] == [--run-module]: pass     import hermes_bootstrap from hermes_cli.main import main sys.exit(main())'
+    check hermes foreground_agent <<< "100 100 $hb"
+    check hermes foreground_agent <<< "100 100 $hb --resume x"
+    check ''     foreground_agent <<< "100 100 $hb --run-module foo"
+    check ''     foreground_agent <<< "100 100 ${hb/hermes_bootstrap/other}"
     check ''     foreground_agent <<< $'100 100 -fish\n100 200 claude'   # claude not in foreground job
     check ''     foreground_agent <<< '100 100 python3 script.py --x pi' # beyond argv[3]
     echo OK
