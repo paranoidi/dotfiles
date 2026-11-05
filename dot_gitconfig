@@ -28,7 +28,6 @@
     whitespace = fix
 [alias]
     p = "pull"
-    P = "push"
     ci = commit
     st = status
     lc = log ORIG_HEAD.. --stat --no-merges
