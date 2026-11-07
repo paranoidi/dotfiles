@@ -40,11 +40,13 @@ err_console = Console(stderr=True)
 
 
 def is_running(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-        return True
-    except OSError:
-        return False
+    # Not kill(pid, 0): that succeeds on a zombie, which stays until its parent reaps it.
+    state = subprocess.run(
+        ["ps", "-p", str(pid), "-o", "stat="],
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    return bool(state) and not state.startswith("Z")
 
 
 def get_command(pid: int) -> str:
