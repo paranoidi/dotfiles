@@ -16,3 +16,8 @@ set -x EZA_THEME ~/.config/eza/theme.yml
 set -x BAT_THEME ansi
 
 set -q XDG_CONFIG_HOME; or set -gx XDG_CONFIG_HOME ~/.config
+
+# COLORTERM doesn't reliably cross SSH; all my terminals do 24-bit.
+if not set -q COLORTERM; and test "$TERM" != linux
+    set -gx COLORTERM truecolor
+end
