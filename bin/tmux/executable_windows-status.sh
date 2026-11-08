@@ -216,9 +216,27 @@ claude_screen_working() {
     while IFS= read -r line; do
         [[ "$line" =~ ^[[:space:]]*[⏸⏵].*esc[[:space:]]to[[:space:]]interrupt([[:space:]]|·|$) ]] && return 0
         [[ "$line" =~ ^[[:space:]]*[*·✢✳✶✻✽][[:space:]]+[^[:space:]].*…([[:space:]]+\([0-9]+[smh]([[:space:]]|·)|[[:space:]]*$) ]] && return 0
-        [[ "$line" =~ ^[[:space:]]*[*·✢✶✻✽][[:space:]]+waiting[[:space:]]for[[:space:]][1-9][0-9]*[[:space:]]background[[:space:]]agents?[[:space:]]to[[:space:]]finish[[:space:]]*$ ]] && return 0
     done <<< "$text"
-    return 1
+    # herdr's background_agents_working uses region last_non_empty_above_prompt_box:
+    # only the line right above the input box, so a stale "Waiting for N
+    # background agents" left in scrollback doesn't read as working.
+    [[ "$(last_line_above_prompt_box "$text")" =~ ^[[:space:]]*[*·✢✶✻✽][[:space:]]+waiting[[:space:]]for[[:space:]][1-9][0-9]*[[:space:]]background[[:space:]]agents?[[:space:]]to[[:space:]]finish[[:space:]]*$ ]]
+}
+
+# herdr's last_non_empty_line(above_prompt_box()): prompt box top = the
+# second-from-bottom horizontal rule (line of ─, optionally "─── label");
+# no box → whole text.
+last_line_above_prompt_box() {
+    local -a lines; local i end=-1 rules=0 t
+    mapfile -t lines <<< "$1"
+    for (( i = ${#lines[@]} - 1; i >= 0; i-- )); do
+        t="$(ltrim "${lines[i]}")"
+        if [[ "$t" =~ ^─+[[:space:]]*$ || "$t" =~ ^───.*$ ]] && (( ++rules == 2 )); then end=$i; break; fi
+    done
+    (( end < 0 )) && end=${#lines[@]}
+    for (( i = end - 1; i >= 0; i-- )); do
+        [[ "${lines[i]}" =~ [^[:space:]] ]] && { printf '%s' "${lines[i]}"; return; }
+    done
 }
 
 # herdr's background_mcp_task_working (src/detect/manifests/claude.toml,
@@ -419,6 +437,8 @@ if [[ "$1" == --test ]]; then
     check idle    agent_state claude '' '⏸ Running · 2 shells ·'
     check working agent_state claude '' '✳ Fetching data… (12s · esc to interrupt)'
     check working agent_state claude '' '* Waiting for 3 background agents to finish'
+    check working agent_state claude '' $'out\n* Waiting for 3 background agents to finish\n\n────\n❯ \n────\n  status'
+    check idle    agent_state claude '✳ x' $'✻ Waiting for 1 background agent to finish\n● done\n✻ Worked for 17s\n────\n❯ \n────\n  ⏵⏵ bypass permissions on'
     check working agent_state claude '' '* Running research · 2 MCP tasks still running'
     check blocked agent_state claude '' $'MCP server "figma" requests your input\n❯ Accept\n  Decline\nEsc to cancel'
     check idle    agent_state claude '' '* just some text'
