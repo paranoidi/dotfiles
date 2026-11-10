@@ -19,8 +19,8 @@ function fish_user_key_bindings
         bind \e\cV "$_fzf_search_vars_command"
         bind -M insert \e\cV "$_fzf_search_vars_command"
 
-        bind \em fzf_cd
-        bind -M insert \em fzf_cd
+        bind \ec fzf_cd
+        bind -M insert \ec fzf_cd
     end
 
     # Remove terminal key-sequence noise.

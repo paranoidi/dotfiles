@@ -1,8 +1,7 @@
 ## FZF
 Search History|Ctrl-R|R for reverse
 Search and insert file|Ctrl-T
-Cd into directory|Alt-C
-Cd into subdirectory|Alt-M
+Cd into subdirectory|Alt-C
 Search Processes|Ctrl-P|P for process
 Kill process|Ctrl-Alt-P
 Search Variables|Ctrl-Alt-Shift-V|V for variable
