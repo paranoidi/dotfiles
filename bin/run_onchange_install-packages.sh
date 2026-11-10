@@ -632,7 +632,14 @@ change_shell_to_fish() {
 
     echo "🏆 Changing shell to fish (version $fish_version)..."
 
-    if ! chsh -s "$fish_path"; then
+    # Passwordless sudo → sudo chsh: plain chsh wants the user's own password,
+    # which key-only accounts (cloud-init lock_passwd) don't have.
+    local chsh_cmd=(chsh -s "$fish_path")
+    if sudo -n true 2>/dev/null; then
+        chsh_cmd=(sudo chsh -s "$fish_path" "$(id -un)")
+    fi
+
+    if ! "${chsh_cmd[@]}"; then
         echo "❌ Failed to change login shell" >&2
         return 1
     fi
