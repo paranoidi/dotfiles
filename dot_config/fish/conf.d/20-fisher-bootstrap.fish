@@ -4,11 +4,11 @@ if status is-interactive; and not set -q __fisher_sync_running
 
     if not test -f $fisher_file
         _spinner --fallback-prefix "🌐" "Installing fisher ..." curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish --create-dirs -o $fisher_file
-        source $fisher_file
-        fisher_sync
+        and source $fisher_file
+        and fisher_sync
     end
 
-    if not functions -q fisher
+    if not functions -q fisher; and test -f $fisher_file
         source $fisher_file
     end
 end

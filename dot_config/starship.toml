@@ -1,3 +1,6 @@
+# Slow disks (Raspberry Pi SD cards) blow the 30ms default.
+scan_timeout = 200
+
 [git_branch]
 style = "bg:black"
 symbol = ""
