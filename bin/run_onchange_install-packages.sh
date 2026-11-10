@@ -99,29 +99,6 @@ _installer_for() {
 
 # =============================================================================
 
-_is_raspberry_pi() {
-    if [[ -r /proc/device-tree/model ]] && tr -d '\0' </proc/device-tree/model | grep -qi 'Raspberry Pi'; then
-        return 0
-    fi
-    if [[ -r /etc/rpi-issue ]]; then
-        return 0
-    fi
-    if [[ -r /etc/os-release ]] && grep -qiE '^(ID=raspbian|ID_LIKE=.*raspbian|PRETTY_NAME=.*Raspberry Pi OS)' /etc/os-release; then
-        return 0
-    fi
-    if uname -a | grep -qiE 'raspberrypi|raspi|bcm27|v[0-9]+\+'; then
-        return 0
-    fi
-    # Fallback for older Raspberry Pi OS installs that report plain Debian.
-    [[ -r /etc/issue ]] && grep -q "Debian GNU/Linux 11" /etc/issue
-}
-
-IS_RASPI=0
-if _is_raspberry_pi; then
-    IS_RASPI=1
-fi
-readonly IS_RASPI
-
 _apt_out_filter() {
     grep -v -E 'already the newest version|upgraded,|newly installed|to remove|not upgraded|WARNING: apt does not have a stable CLI interface|^Hit:|^Get:|^Ign:|Reading package lists|Building dependency tree|Reading state information|^Fetched |list --upgradable.*see them' | awk 'NF'
 }
@@ -412,11 +389,6 @@ install_apt_packages() {
        pgrep -x "Xorg" >/dev/null || \
        pgrep -x "wayland" >/dev/null; then
         packages+=("${APT_GUI_PACKAGES[@]}")
-    fi
-
-    if [[ "$IS_RASPI" == 1 ]]; then
-        echo "⚠️  Detected Raspberry Pi OS, excluding fish"
-        packages=($(printf '%s\n' "${packages[@]}" | grep -v -E '^fish$'))
     fi
 
     local package
