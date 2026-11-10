@@ -1,41 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# If not already inside tmux but tmux is available, relaunch inside a tmux
-# window so the terminal is freed for the duration of the (potentially long)
-# installation.  Prefer an existing "main" session; fall back to a new session
-# named "genesis".
-# --list/--help just print and exit; don't bury their output in a detached tmux window.
-_no_tmux=0
-for _arg in "$@"; do
-    case "$_arg" in
-        -l|--list|-h|--help|--no-tmux) _no_tmux=1 ;;
-    esac
-done
-if [[ "$_no_tmux" == 0 ]] && [[ -z "${TMUX:-}" ]] && command -v tmux >/dev/null 2>&1; then
-    _script=$(realpath "${BASH_SOURCE[0]}")
-    # chezmoi (which runs this as run_onchange_install-packages.sh) executes it
-    # from a temp file it deletes as soon as this process exits. Since we exit
-    # right after handing off to a detached tmux job, that job would try to
-    # `bash` a file chezmoi already removed. Copy it somewhere stable first.
-    _script_copy=$(mktemp /tmp/install-packages-XXXXXX.sh)
-    cp "$_script" "$_script_copy"
-    _cmd="bash $(printf '%q' "$_script_copy")"
-    [[ $# -gt 0 ]] && _cmd+=" $(printf '%q ' "$@")"
-    _cmd+="; rm -f $(printf '%q' "$_script_copy")"
-    # Keep the pane open (dropped into an interactive shell) after the install
-    # finishes so results stay visible instead of the window closing.
-    _cmd+="; exec bash"
-    if tmux has-session -t main 2>/dev/null; then
-        tmux new-window -d -t main: -n "install-packages" "$_cmd"
-        echo "▶️  Launched in tmux session 'main' (new window). Attach: tmux attach -t main"
-    else
-        tmux new-session -d -s genesis -n "install-packages" "$_cmd"
-        echo "▶️  Launched in tmux session 'genesis'. Attach: tmux attach -t genesis"
-    fi
-    exit 0
-fi
-
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -685,14 +650,13 @@ _list_things() {
 }
 
 _usage() {
-    echo "Usage: ${0##*/} [--force [name...]] [--update] [--no-tmux] [--list] [--help]"
+    echo "Usage: ${0##*/} [--force [name...]] [--update] [--list] [--help]"
     echo ""
     echo "  -f, --force [name...]  Re-run installers. With names, force only those things"
     echo "                         (e.g. --force helix fzf cargo:reef-shell). Non-installer"
     echo "                         names are passed to mise install as-is. Bare --force"
     echo "                         re-runs everything."
     echo "  --update               Re-run non-apt installers only (for periodic updates)"
-    echo "  --no-tmux              Run in this terminal, don't relaunch in tmux"
     echo "  -l, --list             List the installable thing names and exit"
 }
 
@@ -709,9 +673,6 @@ main() {
                     FORCE_TARGETS+=("$1")
                     shift
                 done
-                ;;
-            --no-tmux)
-                shift
                 ;;
             --update)
                 UPDATE_ONLY=1
@@ -762,10 +723,3 @@ main() {
 }
 
 main "$@"
-_exit_code=$?
-
-if [[ -n "${TMUX:-}" ]] && command -v fish >/dev/null 2>&1; then
-    fish -c 'toast "Chezmoi install packages completed"' 2>/dev/null || true
-fi
-
-exit $_exit_code
