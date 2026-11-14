@@ -235,6 +235,10 @@ last_line_above_prompt_box() {
     done
     (( end < 0 )) && end=${#lines[@]}
     for (( i = end - 1; i >= 0; i-- )); do
+        # Skip transient footers Claude Code draws between the activity line
+        # and the prompt box (session survey, update notice) — they hid a live
+        # "Waiting for N background agents". herdr has the same gap.
+        [[ "${lines[i],,}" =~ how\ is\ claude\ doing|^[[:space:]]*1:\ bad\ |update\ installed ]] && continue
         [[ "${lines[i]}" =~ [^[:space:]] ]] && { printf '%s' "${lines[i]}"; return; }
     done
 }
@@ -439,6 +443,7 @@ if [[ "$1" == --test ]]; then
     check working agent_state claude '' '* Waiting for 3 background agents to finish'
     check working agent_state claude '' $'out\n* Waiting for 3 background agents to finish\n\n────\n❯ \n────\n  status'
     check idle    agent_state claude '✳ x' $'✻ Waiting for 1 background agent to finish\n● done\n✻ Worked for 17s\n────\n❯ \n────\n  ⏵⏵ bypass permissions on'
+    check working agent_state claude '✳ x' $'✻ Waiting for 1 background agent to finish\n\n● How is Claude doing this session? (optional)\n  1: Bad    2: Fine   3: Good   0: Dismiss\n                  ✔ Update installed · /restart to apply\n────\n❯ \n────\n  ◯ general-purpose  Running tests  17m 47s'
     check working agent_state claude '' '* Running research · 2 MCP tasks still running'
     check blocked agent_state claude '' $'MCP server "figma" requests your input\n❯ Accept\n  Decline\nEsc to cancel'
     check idle    agent_state claude '' '* just some text'
